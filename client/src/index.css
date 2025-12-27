@@ -1,0 +1,46 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  transition: background-color 0.3s;
+  background-color: #ffffff;
+  color: #333;
+}
+
+/* Room Join Card Styling */
+.card {
+  transition: transform 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+/* Video Wrapper for ReactPlayer */
+.video-wrapper {
+  background-color: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Chat Window Styling */
+.chat-window {
+  background: white;
+  border-radius: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stream-container {
+    flex-direction: column; /* Stack video and chat on mobile */
+  }
+  
+  /* Ensuring video takes full width on small screens */
+  div[style*="min-width: 350px"] {
+    min-width: 100% !important;
+  }
+}
