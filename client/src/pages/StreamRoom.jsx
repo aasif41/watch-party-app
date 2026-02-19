@@ -19,7 +19,7 @@ const StreamRoom = () => {
     socket.emit("join_room", roomId);
     socket.on("video_state_update", (data) => {
       const currentTime = playerRef.current?.getCurrentTime() || 0;
-      if (Math.abs(currentTime - data.seekTime) > 2.5) {
+      if (Math.abs(currentTime - data.seekTime) > 2) {
         playerRef.current?.seekTo(data.seekTime);
       }
       setPlaying(data.playing);
@@ -37,67 +37,71 @@ const StreamRoom = () => {
   };
 
   const styles = {
-    main: {
-      background: "#0a0a0c",
+    page: {
+      backgroundColor: "#020617",
       minHeight: "100vh",
-      padding: "20px",
-      color: "#fff",
-      fontFamily: "'Inter', sans-serif"
+      color: "#f8fafc",
+      display: "flex",
+      flexDirection: "column"
     },
-    header: {
+    nav: {
+      padding: "16px 40px",
+      borderBottom: "1px solid #1e293b",
       display: "flex",
       justifyContent: "space-between",
-      alignItems: "center",
-      padding: "0 20px 20px 20px",
-      borderBottom: "1px solid #222"
+      alignItems: "center"
     },
-    contentLayout: {
-      display: "grid",
-      gridTemplateColumns: "1fr 350px",
-      gap: "20px",
-      marginTop: "20px",
-      height: "calc(100vh - 120px)"
+    main: {
+      display: "flex",
+      flex: 1,
+      padding: "24px",
+      gap: "24px"
     },
-    videoContainer: {
-      background: "#000",
-      borderRadius: "16px",
-      overflow: "hidden",
-      boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
-      position: "relative"
+    videoArea: {
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      gap: "16px"
+    },
+    chatArea: {
+      width: "360px",
+      backgroundColor: "#0f172a",
+      borderRadius: "12px",
+      border: "1px solid #1e293b",
+      overflow: "hidden"
     }
   };
 
   return (
-    <div style={styles.main}>
-      <div style={styles.header}>
-        <div>
-          <h2 style={{ margin: 0, color: "#ff8a00" }}>{roomId}</h2>
-          <span style={{ fontSize: "0.8rem", color: "#666" }}>Room Active</span>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <p style={{ margin: 0 }}>Watching as <b>{username}</b></p>
-        </div>
+    <div style={styles.page}>
+      <div style={styles.nav}>
+        <div style={{fontWeight: "700", fontSize: "18px", letterSpacing: "1px"}}>WATCHPARTY</div>
+        <div style={{fontSize: "14px", color: "#94a3b8"}}>Room: <span style={{color: "#3b82f6"}}>{roomId}</span></div>
       </div>
 
-      <div style={styles.contentLayout} className="content-grid">
-        <div style={styles.videoContainer}>
-          <VideoPlayer 
-            url={videoUrl} 
-            playing={playing} 
-            onPlay={() => handleSyncAction(true)} 
-            onPause={() => handleSyncAction(false)}
-            playerRef={playerRef}
-          />
+      <div style={styles.main} className="stream-layout">
+        <div style={styles.videoArea}>
+          <div style={{ borderRadius: "12px", overflow: "hidden", border: "1px solid #334155" }}>
+            <VideoPlayer 
+              url={videoUrl} 
+              playing={playing} 
+              onPlay={() => handleSyncAction(true)} 
+              onPause={() => handleSyncAction(false)}
+              playerRef={playerRef}
+            />
+          </div>
+          <div style={{fontSize: "13px", color: "#64748b"}}>Active as: <b>{username}</b></div>
         </div>
 
-        <div style={{ background: "#161618", borderRadius: "16px", overflow: "hidden" }}>
+        <div style={styles.chatArea}>
           <ChatBox socket={socket} room={roomId} username={username} />
         </div>
       </div>
 
       <style>{`
-        @media (max-width: 1000px) {
-          .content-grid { grid-template-columns: 1fr !important; height: auto !important; }
+        @media (max-width: 900px) {
+          .stream-layout { flex-direction: column; }
+          div[style*="width: 360px"] { width: 100% !important; height: 400px; }
         }
       `}</style>
     </div>
