@@ -10,7 +10,7 @@ function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/stream" element={<StreamRoom />} />
+        <Route path="/stream/:roomId" element={<StreamRoom />} />
       </Routes>
     </>
   );
