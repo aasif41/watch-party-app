@@ -5,38 +5,28 @@ import VideoPlayer from "../components/VideoPlayer";
 import ChatBox from "../components/ChatBox";
 
 const StreamRoom = () => {
-  const { roomId } = useParams(); // URL se Room ID lene ke liye (Refresh fix)
+  const { roomId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
   const playerRef = useRef(null);
 
-  // LocalStorage se data recover karna taaki refresh par link na toote
-  const [username] = useState(localStorage.getItem("wp_username") || "Guest");
+  const [username] = useState(localStorage.getItem("wp_username") || "Watcher");
   const [videoUrl] = useState(localStorage.getItem("wp_videoUrl") || "");
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
-    // Agar video URL nahi hai toh wapas home page par bhej do
-    if (!videoUrl) {
-      navigate("/");
-      return;
-    }
-
+    if (!videoUrl) { navigate("/"); return; }
     socket.emit("join_room", roomId);
-
-    // Sync logic: Lag kam karne ke liye 2 second ka gap check
     socket.on("video_state_update", (data) => {
       const currentTime = playerRef.current?.getCurrentTime() || 0;
-      if (Math.abs(currentTime - data.seekTime) > 2) {
+      if (Math.abs(currentTime - data.seekTime) > 2.5) {
         playerRef.current?.seekTo(data.seekTime);
       }
       setPlaying(data.playing);
     });
-
     return () => socket.off("video_state_update");
   }, [socket, roomId, videoUrl, navigate]);
 
-  // Play/Pause sync function
   const handleSyncAction = (isPlaying) => {
     setPlaying(isPlaying);
     socket.emit("video_state_change", { 
@@ -46,73 +36,51 @@ const StreamRoom = () => {
     });
   };
 
-  // --- Internal CSS Objects for UI ---
   const styles = {
-    container: {
-      display: "flex",
-      flexWrap: "wrap",
-      padding: "30px",
-      gap: "25px",
-      justifyContent: "center",
-      background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-      minHeight: "92vh",
-      fontFamily: "'Poppins', sans-serif"
-    },
-    videoSection: {
-      flex: "2",
-      minWidth: "350px",
-      maxWidth: "900px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "15px"
-    },
-    glassHeader: {
-      background: "rgba(255, 255, 255, 0.8)",
-      backdropFilter: "blur(10px)",
+    main: {
+      background: "#0a0a0c",
+      minHeight: "100vh",
       padding: "20px",
-      borderRadius: "15px",
+      color: "#fff",
+      fontFamily: "'Inter', sans-serif"
+    },
+    header: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.1)",
-      border: "1px solid rgba(255, 255, 255, 0.18)"
+      padding: "0 20px 20px 20px",
+      borderBottom: "1px solid #222"
     },
-    badge: {
-      background: "#004e92",
-      color: "white",
-      padding: "5px 12px",
-      borderRadius: "20px",
-      fontSize: "0.8rem",
-      fontWeight: "bold"
+    contentLayout: {
+      display: "grid",
+      gridTemplateColumns: "1fr 350px",
+      gap: "20px",
+      marginTop: "20px",
+      height: "calc(100vh - 120px)"
     },
-    chatSection: {
-      flex: "1",
-      minWidth: "320px",
-      maxWidth: "420px"
+    videoContainer: {
+      background: "#000",
+      borderRadius: "16px",
+      overflow: "hidden",
+      boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+      position: "relative"
     }
   };
 
   return (
-    <div style={styles.container}>
-      {/* Video Section */}
-      <div style={styles.videoSection}>
-        <div style={styles.glassHeader}>
-          <div>
-            <h3 style={{ margin: 0, color: "#333" }}>🎥 Watching Now</h3>
-            <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
-              Room ID: <span style={{ fontWeight: "bold", color: "#004e92" }}>{roomId}</span>
-            </p>
-          </div>
-          <div style={styles.badge}>Live Sync Active</div>
+    <div style={styles.main}>
+      <div style={styles.header}>
+        <div>
+          <h2 style={{ margin: 0, color: "#ff8a00" }}>{roomId}</h2>
+          <span style={{ fontSize: "0.8rem", color: "#666" }}>Room Active</span>
         </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ margin: 0 }}>Watching as <b>{username}</b></p>
+        </div>
+      </div>
 
-        {/* Video Player wrapper for UI enhancement */}
-        <div style={{ 
-          borderRadius: "15px", 
-          overflow: "hidden", 
-          boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
-          border: "5px solid white" 
-        }}>
+      <div style={styles.contentLayout} className="content-grid">
+        <div style={styles.videoContainer}>
           <VideoPlayer 
             url={videoUrl} 
             playing={playing} 
@@ -121,16 +89,17 @@ const StreamRoom = () => {
             playerRef={playerRef}
           />
         </div>
-        
-        <div style={{ textAlign: "right", color: "#555", fontSize: "0.9rem" }}>
-          Streaming as: <b>{username}</b>
+
+        <div style={{ background: "#161618", borderRadius: "16px", overflow: "hidden" }}>
+          <ChatBox socket={socket} room={roomId} username={username} />
         </div>
       </div>
 
-      {/* Chat Section */}
-      <div style={styles.chatSection}>
-        <ChatBox socket={socket} room={roomId} username={username} />
-      </div>
+      <style>{`
+        @media (max-width: 1000px) {
+          .content-grid { grid-template-columns: 1fr !important; height: auto !important; }
+        }
+      `}</style>
     </div>
   );
 };
