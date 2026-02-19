@@ -17,141 +17,146 @@ const Home = () => {
     }
   };
 
-  const styles = {
-    wrapper: {
-      height: "100vh",
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#050505",
-      position: "relative",
-      overflow: "hidden",
-      fontFamily: "'Inter', sans-serif",
-    },
-    // Background Animation Layers
-    bgLayer: {
-      position: "absolute",
-      width: "100%",
-      height: "100%",
-      background: "radial-gradient(circle at 50% 50%, #1a1a2e 0%, #050505 100%)",
-      zIndex: 1,
-    },
-    animatedWave: {
-      position: "absolute",
-      width: "200%",
-      height: "200%",
-      top: "-50%",
-      left: "-50%",
-      background: "radial-gradient(circle at center, rgba(0, 114, 255, 0.15) 0%, transparent 50%), radial-gradient(circle at 30% 20%, rgba(245, 124, 0, 0.1) 0%, transparent 40%)",
-      animation: "rotateWave 20s linear infinite",
-      zIndex: 2,
-    },
-    card: {
-      position: "relative",
-      zIndex: 10,
-      background: "rgba(255, 255, 255, 0.03)",
-      backdropFilter: "blur(25px)",
-      WebkitBackdropFilter: "blur(25px)",
-      border: "1px solid rgba(255, 255, 255, 0.1)",
-      borderRadius: "32px",
-      padding: "60px 40px",
-      width: "100%",
-      maxWidth: "480px",
-      textAlign: "center",
-      boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
-    },
-    input: {
-      width: "100%",
-      padding: "16px",
-      marginBottom: "18px",
-      background: "rgba(255, 255, 255, 0.05)",
-      border: "1px solid rgba(255, 255, 255, 0.1)",
-      borderRadius: "14px",
-      color: "#fff",
-      fontSize: "1rem",
-      outline: "none",
-      transition: "0.3s ease",
-    },
-    button: {
-      width: "100%",
-      padding: "18px",
-      marginTop: "15px",
-      background: "linear-gradient(90deg, #004e92, #00d2ff)",
-      border: "none",
-      borderRadius: "14px",
-      color: "#fff",
-      fontWeight: "700",
-      fontSize: "1.1rem",
-      cursor: "pointer",
-      boxShadow: "0 10px 30px rgba(0, 78, 146, 0.4)",
-      transition: "transform 0.2s, boxShadow 0.2s",
-    }
-  };
-
   return (
-    <div style={styles.wrapper}>
-      {/* Dynamic Background Elements */}
-      <div style={styles.bgLayer}></div>
-      <div style={styles.animatedWave}></div>
-      
-      {/* CSS Animations */}
+    <div className="home-wrapper">
       <style>{`
-        @keyframes rotateWave {
-          0% { transform: rotate(0deg) scale(1); }
-          50% { transform: rotate(180deg) scale(1.2); }
-          100% { transform: rotate(360deg) scale(1); }
-        }
-        
-        input:focus {
-          border-color: #00d2ff !important;
-          background: rgba(255, 255, 255, 0.1) !important;
-          box-shadow: 0 0 15px rgba(0, 210, 255, 0.2);
-        }
-
-        button:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 15px 40px rgba(0, 78, 146, 0.6);
+        .home-wrapper {
+          height: 100vh;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background-color: #020205; /* Deep black background */
+          position: relative;
+          overflow: hidden;
+          font-family: 'Inter', sans-serif;
         }
 
-        button:active {
-          transform: translateY(0);
+        /* Video jaisa Glowing Wave Animation */
+        .wave-container {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          z-index: 1;
+          filter: blur(40px);
+          opacity: 0.6;
         }
 
-        .glow-text {
-          background: linear-gradient(to right, #fff, #00d2ff);
+        .wave {
+          position: absolute;
+          width: 150%;
+          height: 100%;
+          background: radial-gradient(circle at center, rgba(147, 51, 234, 0.3) 0%, transparent 70%);
+          animation: flow 15s infinite ease-in-out;
+        }
+
+        .wave:nth-child(2) {
+          background: radial-gradient(circle at center, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+          animation-delay: -5s;
+          animation-duration: 20s;
+        }
+
+        @keyframes flow {
+          0%, 100% { transform: translate(-20%, -20%) scale(1); }
+          33% { transform: translate(10%, 10%) scale(1.2); }
+          66% { transform: translate(-10%, 20%) scale(0.8); }
+        }
+
+        .login-card {
+          position: relative;
+          z-index: 10;
+          background: rgba(255, 255, 255, 0.02);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 24px;
+          padding: 50px 40px;
+          width: 100%;
+          maxWidth: 450px;
+          text-align: center;
+          box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .title {
+          font-size: 2.5rem;
+          font-weight: 800;
+          background: linear-gradient(180deg, #fff 0%, #94a3b8 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
-          text-shadow: 0 0 30px rgba(0, 210, 255, 0.3);
+          margin-bottom: 8px;
+        }
+
+        .subtitle {
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 0.85rem;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          margin-bottom: 40px;
+        }
+
+        input {
+          width: 100%;
+          padding: 14px;
+          margin-bottom: 15px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          color: white;
+          outline: none;
+          transition: 0.3s;
+        }
+
+        input:focus {
+          border-color: rgba(59, 130, 246, 0.5);
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .start-btn {
+          width: 100%;
+          padding: 16px;
+          background: #fff;
+          color: #000;
+          border: none;
+          border-radius: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.3s;
+          margin-top: 10px;
+        }
+
+        .start-btn:hover {
+          transform: scale(1.02);
+          box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
         }
       `}</style>
 
-      <div style={styles.card}>
-        <h1 className="glow-text" style={{ fontSize: "2.8rem", margin: "0 0 10px 0", fontWeight: "900" }}>
-          WATCHPARTY
-        </h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "40px", fontSize: "0.95rem", letterSpacing: "1px" }}>
-          ADVANCED INFRASTRUCTURE FOR STREAMING
-        </p>
+      {/* Background Waves */}
+      <div className="wave-container">
+        <div className="wave"></div>
+        <div className="wave"></div>
+      </div>
+
+      <div className="login-card">
+        <h1 className="title">WATCHPARTY</h1>
+        <p className="subtitle">Advanced Infrastructure for Streaming</p>
 
         <input 
-          style={styles.input} 
-          placeholder="Display Name" 
+          type="text" 
+          placeholder="User Identifier" 
           onChange={(e) => setUsername(e.target.value)} 
         />
         <input 
-          style={styles.input} 
-          placeholder="Room Identifier" 
+          type="text" 
+          placeholder="Access Room ID" 
           onChange={(e) => setRoom(e.target.value)} 
         />
         <input 
-          style={styles.input} 
-          placeholder="Media Source URL" 
+          type="text" 
+          placeholder="Video Source URL" 
           onChange={(e) => setVideoUrl(e.target.value)} 
         />
 
-        <button style={styles.button} onClick={joinRoom}>
-          INITIALIZE STREAM
+        <button className="start-btn" onClick={joinRoom}>
+          INITIALIZE SYSTEM
         </button>
       </div>
     </div>
