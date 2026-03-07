@@ -10,5 +10,8 @@ export default defineConfig({
     rollupOptions: {
       input: './index.html',
     },
-  }
+  },
+  optimizeDeps: {
+    include: ['three', '@react-three/fiber', '@react-three/drei'],
+  },
 })
