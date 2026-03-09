@@ -524,12 +524,12 @@ const Home = () => {
       }}>
         {/* === FIRST SCREEN: Login Card centered === */}
         <div style={{
-          minHeight: "100vh",
+          minHeight: "100dvh",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: isMobile ? "80px 20px 30px" : "0 20px"
+          padding: isMobile ? "20px" : "0 20px"
         }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}

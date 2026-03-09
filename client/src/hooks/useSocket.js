@@ -1,6 +1,10 @@
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000", {
+const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  ? "http://localhost:5000"
+  : "https://watch-party-app-server.onrender.com";
+
+const socket = io(BACKEND_URL, {
   transports: ["websocket"],
   reconnection: true,
   reconnectionAttempts: Infinity,
