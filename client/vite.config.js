@@ -8,6 +8,11 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       external: [],
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom', 'socket.io-client', 'react-player'],
+        }
+      }
     },
   },
   optimizeDeps: {
