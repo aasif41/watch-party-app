@@ -30,7 +30,8 @@ const VideoPlayer = ({ url, playing, onPlay, onPause, onProgress, onSeek, onBuff
         config={{
           youtube: {
             playerVars: {
-              origin: window.location.origin,
+              origin: typeof window !== "undefined" ? window.location.origin : "https://watch-party-app-wsaq.vercel.app",
+              enablejsapi: 1,
               rel: 0,
               modestbranding: 1
             }
