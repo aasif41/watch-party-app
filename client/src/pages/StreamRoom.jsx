@@ -34,14 +34,17 @@ const StreamRoom = () => {
     if (!videoUrl && !serverVideoUrl) { navigate("/"); return; }
     
     // Join room, sending our URL (server determines whose URL wins based on who is host)
-    socket.emit("join_room", { roomId, videoUrl });
+    const joinRoom = () => {
+      socket.emit("join_room", { roomId, videoUrl });
+    };
+
+    joinRoom();
     
-    // Handle initial state on join / refresh
-    socket.on("room_state", (state) => {
-      if (state.videoUrl) setServerVideoUrl(state.videoUrl);
+    const handleRoomState = (state) => {
+      if (state.videoUrl && state.videoUrl !== serverVideoUrl) {
+        setServerVideoUrl(state.videoUrl);
+      }
       
-      // We only want to apply the state if we just joined (player might not be ready yet, 
-      // but we store the initial sync data)
       isHandlingSync.current = true;
       setPlaying(state.playing);
       const currentTime = playerRef.current?.getCurrentTime() || 0;
@@ -49,10 +52,9 @@ const StreamRoom = () => {
         playerRef.current.seekTo(state.seekTime);
       }
       setTimeout(() => { isHandlingSync.current = false; }, 500);
-    });
+    };
 
-    // Handle generic state updates (play/pause)
-    socket.on("video_state_update", (data) => {
+    const handleVideoStateUpdate = (data) => {
       if (isHandlingSync.current) return;
       isHandlingSync.current = true;
       
@@ -63,23 +65,28 @@ const StreamRoom = () => {
       setPlaying(data.playing);
       
       setTimeout(() => { isHandlingSync.current = false; }, 300);
-    });
+    };
 
-    // Handle explicit seeks
-    socket.on("video_seek", (data) => {
+    const handleVideoSeek = (data) => {
       if (isHandlingSync.current) return;
       isHandlingSync.current = true;
       playerRef.current?.seekTo(data.seekTime);
       setPlaying(data.playing);
       setTimeout(() => { isHandlingSync.current = false; }, 500);
-    });
+    };
+
+    socket.on("room_state", handleRoomState);
+    socket.on("video_state_update", handleVideoStateUpdate);
+    socket.on("video_seek", handleVideoSeek);
+    socket.on("connect", joinRoom);
 
     return () => {
-      socket.off("room_state");
-      socket.off("video_state_update");
-      socket.off("video_seek");
+      socket.off("connect", joinRoom);
+      socket.off("room_state", handleRoomState);
+      socket.off("video_state_update", handleVideoStateUpdate);
+      socket.off("video_seek", handleVideoSeek);
     };
-  }, [socket, roomId, videoUrl, serverVideoUrl, navigate]);
+  }, [socket, roomId, videoUrl, navigate]);
 
   // Periodic heartbeat / strict sync
   // We'll hook this up to the VideoPlayer's onProgress
