@@ -7,6 +7,10 @@ require("dotenv").config();
 const app = express();
 app.use(cors());
 
+app.get("/", (req, res) => {
+  res.send("Watch Party Server is running!");
+});
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
