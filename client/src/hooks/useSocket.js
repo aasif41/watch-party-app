@@ -1,9 +1,7 @@
 import { io } from "socket.io-client";
 
-const isLocal = window.location.hostname === "localhost" || 
-  window.location.hostname === "127.0.0.1" || 
-  window.location.hostname.startsWith("192.") || 
-  window.location.hostname.startsWith("10.");
+// Use Vite's environment variable to safely determine if we're in dev or prod
+const isLocal = import.meta.env.DEV;
 
 const BACKEND_URL = isLocal
   ? `http://${window.location.hostname}:5000`
