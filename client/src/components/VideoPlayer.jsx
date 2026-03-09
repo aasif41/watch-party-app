@@ -27,6 +27,15 @@ const VideoPlayer = ({ url, playing, onPlay, onPause, onProgress, onSeek, onBuff
         onBuffer={onBuffer}
         onBufferEnd={onBufferEnd}
         progressInterval={1000}
+        config={{
+          youtube: {
+            playerVars: {
+              origin: window.location.origin,
+              rel: 0,
+              modestbranding: 1
+            }
+          }
+        }}
         style={{
           position: 'absolute',
           top: 0,
