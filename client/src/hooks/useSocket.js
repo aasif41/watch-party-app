@@ -7,7 +7,7 @@ const isLocal = window.location.hostname === "localhost" ||
 
 const BACKEND_URL = isLocal
   ? `http://${window.location.hostname}:5000`
-  : "https://watch-party-app-server.onrender.com";
+  : "https://watch-party-app-pulj.onrender.com";
 
 const socket = io(BACKEND_URL, {
   reconnection: true,
