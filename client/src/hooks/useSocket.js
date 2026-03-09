@@ -1,9 +1,11 @@
 import { io } from "socket.io-client";
 
-const socket = io("https://watch-party-app-1-fco3.onrender.com", {
+const socket = io("http://localhost:5000", {
   transports: ["websocket"],
   reconnection: true,
-  reconnectionAttempts: 5
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  timeout: 5000
 });
 
 export const useSocket = () => socket;

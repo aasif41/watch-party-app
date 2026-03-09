@@ -13,28 +13,118 @@ const StreamRoom = () => {
 
   const [username] = useState(localStorage.getItem("wp_username") || "Watcher");
   const [videoUrl] = useState(localStorage.getItem("wp_videoUrl") || "");
+// --- We use refs for state that doesn't need to trigger re-renders
   const [playing, setPlaying] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [serverVideoUrl, setServerVideoUrl] = useState(videoUrl);
+
+  // Sync flags to prevent infinite loops when we programmatically change state
+  const isHandlingSync = useRef(false);
+  const lastSyncSent = useRef(0);
+  const isBuffering = useRef(false);
 
   useEffect(() => {
-    if (!videoUrl) { navigate("/"); return; }
-    socket.emit("join_room", roomId);
-    socket.on("video_state_update", (data) => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    if (!videoUrl && !serverVideoUrl) { navigate("/"); return; }
+    
+    // Join room, sending our URL (server determines whose URL wins based on who is host)
+    socket.emit("join_room", { roomId, videoUrl });
+    
+    // Handle initial state on join / refresh
+    socket.on("room_state", (state) => {
+      if (state.videoUrl) setServerVideoUrl(state.videoUrl);
+      
+      // We only want to apply the state if we just joined (player might not be ready yet, 
+      // but we store the initial sync data)
+      isHandlingSync.current = true;
+      setPlaying(state.playing);
       const currentTime = playerRef.current?.getCurrentTime() || 0;
-      if (Math.abs(currentTime - data.seekTime) > 2) {
+      if (playerRef.current && Math.abs(currentTime - state.seekTime) > 1.5) {
+        playerRef.current.seekTo(state.seekTime);
+      }
+      setTimeout(() => { isHandlingSync.current = false; }, 500);
+    });
+
+    // Handle generic state updates (play/pause)
+    socket.on("video_state_update", (data) => {
+      if (isHandlingSync.current) return;
+      isHandlingSync.current = true;
+      
+      const currentTime = playerRef.current?.getCurrentTime() || 0;
+      if (Math.abs(currentTime - data.seekTime) > 1.5) {
         playerRef.current?.seekTo(data.seekTime);
       }
       setPlaying(data.playing);
+      
+      setTimeout(() => { isHandlingSync.current = false; }, 300);
     });
-    return () => socket.off("video_state_update");
-  }, [socket, roomId, videoUrl, navigate]);
+
+    // Handle explicit seeks
+    socket.on("video_seek", (data) => {
+      if (isHandlingSync.current) return;
+      isHandlingSync.current = true;
+      playerRef.current?.seekTo(data.seekTime);
+      setPlaying(data.playing);
+      setTimeout(() => { isHandlingSync.current = false; }, 500);
+    });
+
+    return () => {
+      socket.off("room_state");
+      socket.off("video_state_update");
+      socket.off("video_seek");
+    };
+  }, [socket, roomId, videoUrl, serverVideoUrl, navigate]);
+
+  // Periodic heartbeat / strict sync
+  // We'll hook this up to the VideoPlayer's onProgress
+  const handleProgress = (state) => {
+    if (!playing || isBuffering.current || isHandlingSync.current) return;
+    
+    const now = Date.now();
+    // Send a pulse every 2 seconds to the server to update the room's current time
+    if (now - lastSyncSent.current > 2000) {
+      socket.emit("sync_time", {
+        room: roomId,
+        time: state.playedSeconds,
+        playing: true
+      });
+      lastSyncSent.current = now;
+    }
+  };
 
   const handleSyncAction = (isPlaying) => {
+    if (isHandlingSync.current) return;
     setPlaying(isPlaying);
     socket.emit("video_state_change", { 
       room: roomId, 
       playing: isPlaying, 
       seekTime: playerRef.current.getCurrentTime() 
     });
+  };
+
+  const handleSeek = (seconds) => {
+    if (isHandlingSync.current) return;
+    socket.emit("video_seek", {
+      room: roomId,
+      seekTime: seconds,
+      playing: playing
+    });
+  };
+
+  const handleBuffer = () => {
+    isBuffering.current = true;
+    handleSyncAction(false); // Pause others if I'm buffering
+  };
+
+  const handleBufferEnd = () => {
+    isBuffering.current = false;
+    handleSyncAction(true); // Resume playing
   };
 
   return (
@@ -45,7 +135,8 @@ const StreamRoom = () => {
       display: "flex",
       flexDirection: "column",
       position: "relative",
-      overflow: "hidden"
+      overflowX: "hidden",
+      overflowY: "auto"
     }}>
       {/* Background Ambience (Subtle dark glow) */}
       <div style={{
@@ -77,31 +168,33 @@ const StreamRoom = () => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
         style={{
-          padding: "20px 40px",
+          padding: isMobile ? "12px 16px" : "20px 40px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           background: "rgba(0, 0, 0, 0.6)",
           backdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-          zIndex: 10
+          zIndex: 10,
+          flexWrap: "wrap",
+          gap: "8px"
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "900", letterSpacing: "1px" }}>
+          <h1 style={{ margin: 0, fontSize: isMobile ? "18px" : "24px", fontWeight: "900", letterSpacing: "1px" }}>
             WATCH<span style={{ color: "#3b82f6" }}>PARTY</span>
           </h1>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "10px" : "20px" }}>
           <div style={{
             background: "rgba(255, 255, 255, 0.05)",
-            padding: "8px 16px",
+            padding: isMobile ? "6px 10px" : "8px 16px",
             borderRadius: "12px",
-            fontSize: "14px",
+            fontSize: isMobile ? "12px" : "14px",
             color: "#94a3b8",
             border: "1px solid rgba(255,255,255,0.05)"
           }}>
-            Room ID: <strong style={{ color: "#fff", marginLeft: "4px" }}>{roomId}</strong>
+            Room: <strong style={{ color: "#fff", marginLeft: "4px" }}>{roomId}</strong>
           </div>
           <button 
             onClick={() => navigate("/")}
@@ -129,8 +222,8 @@ const StreamRoom = () => {
         style={{
           display: "flex",
           flex: 1,
-          padding: "30px 40px",
-          gap: "30px",
+          padding: isMobile ? "12px" : "30px 40px",
+          gap: isMobile ? "16px" : "30px",
           maxWidth: "1800px",
           margin: "0 auto",
           width: "100%",
@@ -151,21 +244,25 @@ const StreamRoom = () => {
             minWidth: 0 // Prevents flex shrink issues
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600", color: "#f8fafc" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? "16px" : "20px", fontWeight: "600", color: "#f8fafc" }}>
               Now Playing
             </h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#ef4444", animation: "pulse 2s infinite" }} />
-              <span style={{ fontSize: "14px", color: "#94a3b8", fontWeight: "500" }}>Live Sync Active</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <div style={{ width: isMobile ? "8px" : "10px", height: isMobile ? "8px" : "10px", borderRadius: "50%", background: "#ef4444", animation: "pulse 2s infinite" }} />
+              <span style={{ fontSize: isMobile ? "12px" : "14px", color: "#94a3b8", fontWeight: "500" }}>Live Sync Active</span>
             </div>
           </div>
 
           <VideoPlayer 
-            url={videoUrl} 
+            url={serverVideoUrl || videoUrl} 
             playing={playing} 
             onPlay={() => handleSyncAction(true)} 
             onPause={() => handleSyncAction(false)}
+            onProgress={handleProgress}
+            onSeek={handleSeek}
+            onBuffer={handleBuffer}
+            onBufferEnd={handleBufferEnd}
             playerRef={playerRef}
           />
           

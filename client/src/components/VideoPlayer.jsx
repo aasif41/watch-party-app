@@ -1,7 +1,7 @@
 import React from "react";
 import ReactPlayer from "react-player";
 
-const VideoPlayer = ({ url, playing, onPlay, onPause, playerRef }) => {
+const VideoPlayer = ({ url, playing, onPlay, onPause, onProgress, onSeek, onBuffer, onBufferEnd, playerRef }) => {
   return (
     <div style={{
       width: '100%',
@@ -22,6 +22,11 @@ const VideoPlayer = ({ url, playing, onPlay, onPause, playerRef }) => {
         height="100%"
         onPlay={onPlay}
         onPause={onPause}
+        onProgress={onProgress}
+        onSeek={onSeek}
+        onBuffer={onBuffer}
+        onBufferEnd={onBufferEnd}
+        progressInterval={1000}
         style={{
           position: 'absolute',
           top: 0,
