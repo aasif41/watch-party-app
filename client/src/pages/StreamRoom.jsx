@@ -51,11 +51,10 @@ const StreamRoom = () => {
       if (playerRef.current && Math.abs(currentTime - state.seekTime) > 1.5) {
         playerRef.current.seekTo(state.seekTime);
       }
-      setTimeout(() => { isHandlingSync.current = false; }, 500);
+      setTimeout(() => { isHandlingSync.current = false; }, 2000);
     };
 
     const handleVideoStateUpdate = (data) => {
-      if (isHandlingSync.current) return;
       isHandlingSync.current = true;
       
       const currentTime = playerRef.current?.getCurrentTime() || 0;
@@ -64,15 +63,14 @@ const StreamRoom = () => {
       }
       setPlaying(data.playing);
       
-      setTimeout(() => { isHandlingSync.current = false; }, 300);
+      setTimeout(() => { isHandlingSync.current = false; }, 2000);
     };
 
     const handleVideoSeek = (data) => {
-      if (isHandlingSync.current) return;
       isHandlingSync.current = true;
       playerRef.current?.seekTo(data.seekTime);
       setPlaying(data.playing);
-      setTimeout(() => { isHandlingSync.current = false; }, 500);
+      setTimeout(() => { isHandlingSync.current = false; }, 2000);
     };
 
     socket.on("room_state", handleRoomState);
@@ -106,12 +104,12 @@ const StreamRoom = () => {
   };
 
   const handleSyncAction = (isPlaying) => {
-    if (isHandlingSync.current) return;
+    if (playing === isPlaying) return; // FIX Echo Loop: Don't bounce states if we are already in the correct state
     setPlaying(isPlaying);
     socket.emit("video_state_change", { 
       room: roomId, 
       playing: isPlaying, 
-      seekTime: playerRef.current.getCurrentTime() 
+      seekTime: playerRef.current?.getCurrentTime() || 0
     });
   };
 
@@ -126,12 +124,11 @@ const StreamRoom = () => {
 
   const handleBuffer = () => {
     isBuffering.current = true;
-    handleSyncAction(false); // Pause others if I'm buffering
+    // Purposely NOT pausing everyone else - causes severe lag loops for users with good connections.
   };
 
   const handleBufferEnd = () => {
     isBuffering.current = false;
-    handleSyncAction(true); // Resume playing
   };
 
   return (
