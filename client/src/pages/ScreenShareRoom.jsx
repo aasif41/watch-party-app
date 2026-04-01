@@ -33,12 +33,13 @@ const ScreenShareRoom = () => {
   const peerConnectionsRef = useRef(new Map());
   const viewerPcRef = useRef(null);
 
-  // Mobile check + landscape lock hint
   useEffect(() => {
     const check = () => {
       const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isSmallScreen = window.innerWidth < 768 && window.innerHeight < 768; // check both since landscape
-      setIsMobile(isMobileUserAgent || isSmallScreen);
+      const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+      const isSmallScreen = window.innerWidth < 1024;
+      // If it's a touch device with a smallish screen, or explicit mobile UA, treat as mobile.
+      setIsMobile(isMobileUserAgent || (isTouch && isSmallScreen));
     };
     check();
     window.addEventListener("resize", check);
