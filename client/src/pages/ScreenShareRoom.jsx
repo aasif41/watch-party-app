@@ -35,7 +35,11 @@ const ScreenShareRoom = () => {
 
   // Mobile check + landscape lock hint
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => {
+      const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isSmallScreen = window.innerWidth < 768 && window.innerHeight < 768; // check both since landscape
+      setIsMobile(isMobileUserAgent || isSmallScreen);
+    };
     check();
     window.addEventListener("resize", check);
 

@@ -80,7 +80,18 @@ const VideoChat = ({ socket, roomId, username }) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 24 } },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          advanced: [
+            { googEchoCancellation: true },
+            { googExperimentalEchoCancellation: true },
+            { googNoiseSuppression: true },
+            { googExperimentalNoiseSuppression: true },
+            { googHighpassFilter: true }
+          ]
+        },
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
