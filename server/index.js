@@ -205,6 +205,15 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("video_chat_effect", (data) => {
+    socket.to(data.room).emit("video_chat_effect", {
+      from: socket.id,
+      filter: data.filter,
+      sticker: data.sticker,
+      stickerPos: data.stickerPos
+    });
+  });
+
   // ========================
   // DISCONNECT
   // ========================

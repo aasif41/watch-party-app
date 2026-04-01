@@ -80,7 +80,7 @@ const VideoChat = ({ socket, roomId, username }) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 24 } },
-        audio: true,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -123,6 +123,13 @@ const VideoChat = ({ socket, roomId, username }) => {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
+
+  // Sync visual effects (filters/stickers)
+  useEffect(() => {
+    if (isEnabled) {
+      socket.emit("video_chat_effect", { room: roomId, filter: activeFilter, sticker: activeSticker, stickerPos });
+    }
+  }, [isEnabled, activeFilter, activeSticker, stickerPos, peers.length, socket, roomId]);
 
   // Peer signaling
   useEffect(() => {
@@ -191,11 +198,16 @@ const VideoChat = ({ socket, roomId, username }) => {
       setPeers((prev) => prev.filter((p) => p.peerId !== peerId));
     };
 
+    const handleEffect = ({ from, filter, sticker, stickerPos }) => {
+      setPeers((prev) => prev.map((p) => p.peerId === from ? { ...p, filter, sticker, stickerPos } : p));
+    };
+
     socket.on("peer_video_chat_enabled", handlePeerEnabled);
     socket.on("video_chat_offer", handleOffer);
     socket.on("video_chat_answer", handleAnswer);
     socket.on("video_chat_ice", handleIce);
     socket.on("peer_video_chat_disabled", handlePeerDisabled);
+    socket.on("video_chat_effect", handleEffect);
 
     return () => {
       socket.off("peer_video_chat_enabled", handlePeerEnabled);
@@ -203,6 +215,7 @@ const VideoChat = ({ socket, roomId, username }) => {
       socket.off("video_chat_answer", handleAnswer);
       socket.off("video_chat_ice", handleIce);
       socket.off("peer_video_chat_disabled", handlePeerDisabled);
+      socket.off("video_chat_effect", handleEffect);
     };
   }, [isEnabled, socket, roomId]);
 
@@ -269,7 +282,7 @@ const VideoChat = ({ socket, roomId, username }) => {
         style={{
           width: "100%", height: "100%", objectFit: "cover",
           transform: isMainLocal ? "scaleX(-1)" : "none",
-          filter: isMainLocal ? activeFilter : "none"
+          filter: isMainLocal ? activeFilter : (peers[0]?.filter || "none")
         }}
       />
 
@@ -294,6 +307,18 @@ const VideoChat = ({ socket, roomId, username }) => {
         >
           {activeSticker}
         </motion.div>
+      )}
+
+      {/* Main stream labels & stickers (if main is remote) */}
+      {!isMainLocal && peers[0]?.sticker && (
+        <div
+          style={{
+            position: "absolute", top: `${peers[0].stickerPos?.y || 10}%`, right: `${100 - (peers[0].stickerPos?.x || 70)}%`,
+            fontSize: "2.5rem", textShadow: "0 2px 12px rgba(0,0,0,0.6)", userSelect: "none"
+          }}
+        >
+          {peers[0].sticker}
+        </div>
       )}
 
       {/* Label for main video */}

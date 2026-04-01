@@ -24,7 +24,6 @@ const ScreenShareRoom = () => {
   const [isPresenter, setIsPresenter] = useState(false);
   const [shareError, setShareError] = useState("");
   const [activeTab, setActiveTab] = useState("chat"); // 'chat' or 'video'
-  const [showSidebar, setShowSidebar] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
 
@@ -137,10 +136,16 @@ const ScreenShareRoom = () => {
     socket.on("viewer_joined", handleViewerJoined);
     socket.on("screen_share_answer", handleAnswer);
     socket.on("screen_ice_candidate", handleIce);
+    socket.on("screen_share_stopped", () => {
+      setRemoteStream(null);
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    });
+
     return () => {
       socket.off("viewer_joined", handleViewerJoined);
       socket.off("screen_share_answer", handleAnswer);
       socket.off("screen_ice_candidate", handleIce);
+      socket.off("screen_share_stopped");
     };
   }, [socket, roomId]);
 
@@ -250,6 +255,14 @@ const ScreenShareRoom = () => {
     setIsPresenter(false);
   }, [isPresenter, socket, roomId]);
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
   const hasStream = isPresenter ? !!localStreamRef.current && isSharing : !!remoteStream;
 
   return (
@@ -269,7 +282,7 @@ const ScreenShareRoom = () => {
 
         <div className="header-actions">
           {/* Action buttons */}
-          {!isSharing ? (
+          {!isSharing && !isMobile ? (
             <motion.button whileTap={{ scale: 0.95 }} className="btn-share" onClick={startSharing}>
               Share Screen
             </motion.button>
@@ -280,13 +293,12 @@ const ScreenShareRoom = () => {
           ) : null}
 
           <button
-            className={`btn-icon ${showSidebar ? "active" : ""}`}
-            onClick={() => setShowSidebar(!showSidebar)}
-            title="Toggle Sidebar"
+            className="btn-icon"
+            onClick={toggleFullscreen}
+            title="Fullscreen"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="15" y1="3" x2="15" y2="21"></line>
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
             </svg>
           </button>
 
@@ -348,16 +360,8 @@ const ScreenShareRoom = () => {
         </div>
 
         {/* Sidebar Panel */}
-        <AnimatePresence>
-          {showSidebar && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: isMobile ? "100%" : "380px", opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="chat-panel"
-            >
-              <div className="sidebar-tabs">
+        <div className="chat-panel" style={{ width: isMobile ? "100%" : "380px" }}>
+          <div className="sidebar-tabs">
                 <button
                   className={`sidebar-tab ${activeTab === "chat" ? "active" : ""}`}
                   onClick={() => setActiveTab("chat")}
@@ -378,13 +382,11 @@ const ScreenShareRoom = () => {
                 <div style={{ display: activeTab === "chat" ? "flex" : "none", height: "100%", width: "100%", flexDirection: "column" }}>
                   <ChatBox socket={socket} room={roomId} username={username} />
                 </div>
-                <div style={{ display: activeTab === "video" ? "block" : "none", height: "100%", width: "100%" }}>
-                  <VideoChat socket={socket} roomId={roomId} username={username} />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            <div style={{ display: activeTab === "video" ? "block" : "none", height: "100%", width: "100%" }}>
+              <VideoChat socket={socket} roomId={roomId} username={username} />
+            </div>
+          </div>
+        </div>
       </div>
 
       <style>{`
