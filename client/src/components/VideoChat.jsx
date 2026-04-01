@@ -247,258 +247,171 @@ const VideoChat = ({ socket, roomId, username }) => {
   }
 
   // Active video chat UI
-  const totalParticipants = peers.length + 1;
-  const gridCols = totalParticipants <= 2 ? totalParticipants : Math.min(totalParticipants, 3);
+  const hasPeer = peers.length > 0;
+  const mainStream = hasPeer ? peers[0].stream : localStream;
+  const isMainLocal = !hasPeer;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      style={{
-        background: "rgba(255,255,255,0.02)", borderRadius: "16px",
-        border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden"
-      }}
-    >
-      {/* Toolbar */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(0,0,0,0.2)", gap: "8px", flexWrap: "wrap"
-      }}>
-        {/* Left: Controls */}
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          <ToolBtn active={!isMuted} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>
-            {isMuted ? "🔇" : "🎤"}
-          </ToolBtn>
-          <ToolBtn active={!isCamOff} onClick={toggleCamera} title={isCamOff ? "Camera On" : "Camera Off"}>
-            {isCamOff ? "📷" : "📹"}
-          </ToolBtn>
-          <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.08)", margin: "0 4px" }} />
-          <ToolBtn active={activePanel === "filters"} onClick={() => setActivePanel(p => p === "filters" ? null : "filters")}>
-            🎨
-          </ToolBtn>
-          <ToolBtn active={activePanel === "stickers"} onClick={() => setActivePanel(p => p === "stickers" ? null : "stickers")}>
-            😎
-          </ToolBtn>
-        </div>
+    <div style={{
+      width: "100%", height: "100%", position: "relative",
+      background: "#000", overflow: "hidden", display: "flex", flexDirection: "column"
+    }}>
+      {/* Main Full-Size Video */}
+      <video
+        ref={(el) => {
+          if (el && mainStream) {
+            el.srcObject = mainStream;
+            // Only attach local ref if we are showing local as main
+            if (isMainLocal && localVideoRef) localVideoRef.current = el;
+          }
+        }}
+        autoPlay playsInline muted={isMainLocal}
+        style={{
+          width: "100%", height: "100%", objectFit: "cover",
+          transform: isMainLocal ? "scaleX(-1)" : "none",
+          filter: isMainLocal ? activeFilter : "none"
+        }}
+      />
 
-        {/* Right: End */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={disableVideoChat}
+      {/* Main stream labels & stickers (only apply stickers/bg if main is local) */}
+      {isMainLocal && isCamOff && (
+        <div style={{ position: "absolute", inset: 0, background: "#111", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "700", color: "#64748b" }}>
+            {username.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      )}
+      {isMainLocal && activeSticker && (
+        <motion.div
+          drag dragMomentum={false}
           style={{
-            background: "rgba(239,68,68,0.15)", color: "#f87171",
-            border: "1px solid rgba(239,68,68,0.2)", padding: "5px 12px",
-            borderRadius: "8px", cursor: "pointer", fontSize: "0.72rem",
-            fontWeight: "600", letterSpacing: "0.3px"
+            position: "absolute", top: `${stickerPos.y}%`, right: `${100 - stickerPos.x}%`,
+            fontSize: "2.5rem", cursor: "grab", textShadow: "0 2px 12px rgba(0,0,0,0.6)", userSelect: "none"
+          }}
+          onDragEnd={(_, info) => {
+            setStickerPos(prev => ({ x: Math.max(0, Math.min(90, prev.x + (info.offset.x / 2))), y: Math.max(0, Math.min(80, prev.y + (info.offset.y / 2))) }));
           }}
         >
-          End
-        </motion.button>
+          {activeSticker}
+        </motion.div>
+      )}
+
+      {/* Label for main video */}
+      <div style={{
+        position: "absolute", top: "12px", left: "12px",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+        padding: "4px 10px", borderRadius: "8px", fontSize: "0.7rem", color: "#fff"
+      }}>
+        {isMainLocal ? "You" : peers[0].username}
       </div>
 
-      {/* Filter/Sticker Panels */}
-      <AnimatePresence>
-        {activePanel === "filters" && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ overflow: "hidden", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <div style={{ padding: "10px 14px" }}>
-              {/* Category tabs */}
-              <div style={{ display: "flex", gap: "4px", marginBottom: "8px" }}>
-                {FILTER_CATEGORIES.map((cat, idx) => (
-                  <button
-                    key={cat.label}
-                    onClick={() => setFilterCategory(idx)}
-                    style={{
-                      background: filterCategory === idx ? "rgba(255,255,255,0.1)" : "transparent",
-                      color: filterCategory === idx ? "#fff" : "rgba(255,255,255,0.4)",
-                      border: "none", padding: "4px 10px", borderRadius: "6px",
-                      cursor: "pointer", fontSize: "0.7rem", fontWeight: "600",
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-              {/* Filter grid */}
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {FILTER_CATEGORIES[filterCategory].filters.map((f) => (
-                  <motion.button
-                    key={f.label}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setActiveFilter(f.value)}
-                    style={{
-                      background: activeFilter === f.value ? "#fff" : "rgba(255,255,255,0.06)",
-                      color: activeFilter === f.value ? "#000" : "rgba(255,255,255,0.7)",
-                      border: "none", padding: "6px 12px", borderRadius: "8px",
-                      cursor: "pointer", fontSize: "0.72rem", fontWeight: "600",
-                      display: "flex", alignItems: "center", gap: "4px",
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    <span style={{ fontSize: "0.85rem" }}>{f.icon}</span>
-                    {f.label}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {activePanel === "stickers" && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ overflow: "hidden", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <div style={{ padding: "10px 14px" }}>
-              {/* Pack tabs */}
-              <div style={{ display: "flex", gap: "4px", marginBottom: "8px" }}>
-                <button
-                  onClick={() => setActiveSticker(null)}
-                  style={{
-                    background: activeSticker === null ? "rgba(255,255,255,0.1)" : "transparent",
-                    color: activeSticker === null ? "#fff" : "rgba(255,255,255,0.4)",
-                    border: "none", padding: "4px 10px", borderRadius: "6px",
-                    cursor: "pointer", fontSize: "0.7rem", fontWeight: "600"
-                  }}
-                >
-                  None
-                </button>
-                {STICKER_PACKS.map((pack, idx) => (
-                  <button
-                    key={pack.label}
-                    onClick={() => setStickerPack(idx)}
-                    style={{
-                      background: stickerPack === idx && activeSticker ? "rgba(255,255,255,0.1)" : "transparent",
-                      color: stickerPack === idx && activeSticker ? "#fff" : "rgba(255,255,255,0.4)",
-                      border: "none", padding: "4px 10px", borderRadius: "6px",
-                      cursor: "pointer", fontSize: "0.7rem", fontWeight: "600"
-                    }}
-                  >
-                    {pack.label}
-                  </button>
-                ))}
-              </div>
-              {/* Sticker grid */}
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {STICKER_PACKS[stickerPack].stickers.map((s) => (
-                  <motion.button
-                    key={s}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setActiveSticker(s)}
-                    style={{
-                      background: activeSticker === s ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
-                      border: activeSticker === s ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
-                      width: "38px", height: "38px", borderRadius: "10px",
-                      cursor: "pointer", fontSize: "1.2rem",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    {s}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Video Grid */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-        gap: "2px", padding: "2px"
-      }}>
-        {/* Local */}
-        <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", background: "#111", aspectRatio: "4/3" }}>
+      {/* Local PiP Video (Only show if there is a peer) */}
+      {hasPeer && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+          style={{
+            position: "absolute", bottom: "70px", right: "12px",
+            width: "90px", height: "130px", borderRadius: "10px",
+            overflow: "hidden", background: "#111", border: "2px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)", zIndex: 10
+          }}
+        >
           <video
-            ref={localVideoRef}
-            autoPlay muted playsInline
-            style={{
-              width: "100%", height: "100%", objectFit: "cover",
-              filter: activeFilter, transform: "scaleX(-1)"
-            }}
+            ref={(el) => { if (el && localStream) el.srcObject = localStream; localVideoRef.current = el; }}
+            autoPlay playsInline muted
+            style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", filter: activeFilter }}
           />
           {isCamOff && (
-            <div style={{
-              position: "absolute", inset: 0, background: "#111",
-              display: "flex", alignItems: "center", justifyContent: "center"
-            }}>
-              <div style={{
-                width: "40px", height: "40px", borderRadius: "50%",
-                background: "rgba(255,255,255,0.1)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "18px", fontWeight: "700", color: "#64748b"
-              }}>
+            <div style={{ position: "absolute", inset: 0, background: "#111", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "700", color: "#64748b" }}>
                 {username.charAt(0).toUpperCase()}
               </div>
             </div>
           )}
           {activeSticker && (
-            <motion.div
-              drag
-              dragMomentum={false}
-              style={{
-                position: "absolute", top: `${stickerPos.y}%`, right: `${100 - stickerPos.x}%`,
-                fontSize: "2rem", cursor: "grab",
-                textShadow: "0 2px 12px rgba(0,0,0,0.6)",
-                userSelect: "none"
-              }}
-              onDragEnd={(_, info) => {
-                setStickerPos(prev => ({
-                  x: Math.max(0, Math.min(90, prev.x + (info.offset.x / 2))),
-                  y: Math.max(0, Math.min(80, prev.y + (info.offset.y / 2)))
-                }));
-              }}
-            >
+            <div style={{ position: "absolute", bottom: "4px", right: "4px", fontSize: "1.2rem", textShadow: "0 2px 4px rgba(0,0,0,0.5)"}}>
               {activeSticker}
-            </motion.div>
-          )}
-          <div style={{
-            position: "absolute", bottom: "6px", left: "6px",
-            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)",
-            padding: "2px 8px", borderRadius: "6px",
-            fontSize: "0.65rem", color: "rgba(255,255,255,0.8)",
-            fontWeight: "500"
-          }}>
-            You
-          </div>
-        </div>
-
-        {/* Remote peers */}
-        {peers.map((peer) => (
-          <div key={peer.peerId} style={{
-            position: "relative", borderRadius: "12px", overflow: "hidden",
-            background: "#111", aspectRatio: "4/3"
-          }}>
-            <video
-              ref={(el) => { if (el && peer.stream) el.srcObject = peer.stream; }}
-              autoPlay playsInline
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-            <div style={{
-              position: "absolute", bottom: "6px", left: "6px",
-              background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)",
-              padding: "2px 8px", borderRadius: "6px",
-              fontSize: "0.65rem", color: "rgba(255,255,255,0.8)",
-              fontWeight: "500"
-            }}>
-              {peer.username}
             </div>
-          </div>
-        ))}
+          )}
+        </motion.div>
+      )}
+
+      {/* Floating Toolbar */}
+      <div style={{
+        position: "absolute", bottom: "12px", left: "50%", transform: "translateX(-50%)",
+        display: "flex", alignItems: "center", gap: "6px",
+        background: "rgba(20, 20, 20, 0.85)", backdropFilter: "blur(12px)",
+        border: "1px solid rgba(255,255,255,0.08)", padding: "6px", borderRadius: "12px", zIndex: 20
+      }}>
+        <ToolBtn active={!isMuted} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>{isMuted ? "🔇" : "🎤"}</ToolBtn>
+        <ToolBtn active={!isCamOff} onClick={toggleCamera} title={isCamOff ? "Camera On" : "Camera Off"}>{isCamOff ? "📷" : "📹"}</ToolBtn>
+        <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 2px" }} />
+        <ToolBtn active={activePanel === "filters"} onClick={() => setActivePanel(p => p === "filters" ? null : "filters")}>🎨</ToolBtn>
+        <ToolBtn active={activePanel === "stickers"} onClick={() => setActivePanel(p => p === "stickers" ? null : "stickers")}>😎</ToolBtn>
+        <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 2px" }} />
+        <motion.button
+          whileTap={{ scale: 0.9 }} onClick={disableVideoChat}
+          style={{
+            background: "#ef4444", color: "#fff", border: "none", width: "32px", height: "32px", borderRadius: "8px",
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer"
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </motion.button>
       </div>
-    </motion.div>
+
+      {/* Popovers for Filters/Stickers */}
+      <AnimatePresence>
+        {activePanel && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            style={{
+              position: "absolute", bottom: "60px", left: "12px", right: "12px",
+              background: "rgba(20,20,20,0.95)", backdropFilter: "blur(16px)",
+              border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px",
+              padding: "10px", zIndex: 15, maxHeight: "200px", overflowY: "auto"
+            }}
+          >
+            {activePanel === "filters" && (
+              <div>
+                <div style={{ display: "flex", gap: "4px", marginBottom: "8px" }}>
+                  {FILTER_CATEGORIES.map((cat, idx) => (
+                    <button key={cat.label} onClick={() => setFilterCategory(idx)} style={{ background: filterCategory === idx ? "rgba(255,255,255,0.1)" : "transparent", color: filterCategory === idx ? "#fff" : "rgba(255,255,255,0.4)", border: "none", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "0.7rem", fontWeight: "600" }}>{cat.label}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {FILTER_CATEGORIES[filterCategory].filters.map((f) => (
+                    <button key={f.label} onClick={() => setActiveFilter(f.value)} style={{ background: activeFilter === f.value ? "#fff" : "rgba(255,255,255,0.06)", color: activeFilter === f.value ? "#000" : "rgba(255,255,255,0.7)", border: "none", padding: "6px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "0.7rem", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span>{f.icon}</span>{f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activePanel === "stickers" && (
+              <div>
+                <div style={{ display: "flex", gap: "4px", marginBottom: "8px" }}>
+                  <button onClick={() => setActiveSticker(null)} style={{ background: activeSticker === null ? "rgba(255,255,255,0.1)" : "transparent", color: activeSticker === null ? "#fff" : "rgba(255,255,255,0.4)", border: "none", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "0.7rem", fontWeight: "600" }}>None</button>
+                  {STICKER_PACKS.map((pack, idx) => (
+                    <button key={pack.label} onClick={() => setStickerPack(idx)} style={{ background: stickerPack === idx && activeSticker ? "rgba(255,255,255,0.1)" : "transparent", color: stickerPack === idx && activeSticker ? "#fff" : "rgba(255,255,255,0.4)", border: "none", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "0.7rem", fontWeight: "600" }}>{pack.label}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {STICKER_PACKS[stickerPack].stickers.map((s) => (
+                    <button key={s} onClick={() => setActiveSticker(s)} style={{ background: activeSticker === s ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.04)", border: activeSticker === s ? "1px solid rgba(255,255,255,0.3)" : "1px solid transparent", width: "34px", height: "34px", borderRadius: "8px", cursor: "pointer", fontSize: "1.1rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 

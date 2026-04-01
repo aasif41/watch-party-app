@@ -17,8 +17,9 @@ const StreamRoom = () => {
   const [playing, setPlaying] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [serverVideoUrl, setServerVideoUrl] = useState(videoUrl);
-  const [showVideoChat, setShowVideoChat] = useState(false);
-  const [showChat, setShowChat] = useState(true);
+  const [activeTab, setActiveTab] = useState("chat");
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const isHandlingSync = useRef(false);
   const lastSyncSent = useRef(0);
@@ -32,8 +33,11 @@ const StreamRoom = () => {
     // Landscape lock on mobile
     const lockOrientation = async () => {
       try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen().catch(() => {});
+        }
         if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock("landscape");
+          await screen.orientation.lock("landscape").catch(() => {});
         }
       } catch (e) {}
     };
@@ -44,6 +48,18 @@ const StreamRoom = () => {
       try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
     };
   }, []);
+
+  useEffect(() => {
+    const handleMsg = () => {
+      if (activeTab !== "chat") setUnreadCount(c => c + 1);
+    };
+    socket.on("receive_message", handleMsg);
+    return () => socket.off("receive_message", handleMsg);
+  }, [socket, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "chat") setUnreadCount(0);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!videoUrl && !serverVideoUrl) { navigate("/"); return; }
@@ -135,22 +151,13 @@ const StreamRoom = () => {
         </div>
         <div className="header-actions">
           <button
-            className={`btn-icon ${showVideoChat ? "active" : ""}`}
-            onClick={() => setShowVideoChat(!showVideoChat)}
-            title="Video Chat"
+            className={`btn-icon ${showSidebar ? "active" : ""}`}
+            onClick={() => setShowSidebar(!showSidebar)}
+            title="Toggle Sidebar"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="23 7 16 12 23 17 23 7" />
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-            </svg>
-          </button>
-          <button
-            className={`btn-icon ${showChat ? "active" : ""}`}
-            onClick={() => setShowChat(!showChat)}
-            title="Chat"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="15" y1="3" x2="15" y2="21"></line>
             </svg>
           </button>
           <button className="btn-leave" onClick={() => navigate("/")}>Leave</button>
@@ -171,26 +178,11 @@ const StreamRoom = () => {
             onBufferEnd={handleBufferEnd}
             playerRef={playerRef}
           />
-
-          {/* Video Chat */}
-          <AnimatePresence>
-            {showVideoChat && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.25 }}
-                style={{ overflow: "hidden" }}
-              >
-                <VideoChat socket={socket} roomId={roomId} username={username} />
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
-        {/* Chat */}
+        {/* Sidebar Panel */}
         <AnimatePresence>
-          {showChat && (
+          {showSidebar && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: isMobile ? "100%" : "380px", opacity: 1 }}
@@ -198,7 +190,30 @@ const StreamRoom = () => {
               transition={{ duration: 0.25 }}
               className="chat-panel"
             >
-              <ChatBox socket={socket} room={roomId} username={username} />
+              <div className="sidebar-tabs">
+                <button
+                  className={`sidebar-tab ${activeTab === "chat" ? "active" : ""}`}
+                  onClick={() => setActiveTab("chat")}
+                >
+                  💬 Chat
+                  {unreadCount > 0 && <span className="tab-badge">{unreadCount}</span>}
+                </button>
+                <div className="tab-divider" />
+                <button
+                  className={`sidebar-tab ${activeTab === "video" ? "active" : ""}`}
+                  onClick={() => setActiveTab("video")}
+                >
+                  📹 Video Call
+                </button>
+              </div>
+              
+              <div className="sidebar-content">
+                {activeTab === "chat" ? (
+                  <ChatBox socket={socket} room={roomId} username={username} />
+                ) : (
+                  <VideoChat socket={socket} roomId={roomId} username={username} />
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -326,6 +341,48 @@ const StreamRoom = () => {
           display: flex;
           flex-direction: column;
           min-height: 0;
+          background: #0f0f0f;
+        }
+
+        .sidebar-tabs {
+          display: flex;
+          align-items: center;
+          padding: 8px 12px;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.02);
+          gap: 6px;
+          flex-shrink: 0;
+        }
+        .sidebar-tab {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 8px 0;
+          border: none;
+          background: transparent;
+          color: #64748b;
+          font-size: 0.8rem;
+          font-weight: 600;
+          cursor: pointer;
+          border-radius: 8px;
+          transition: all 0.2s;
+        }
+        .sidebar-tab:hover { background: rgba(255,255,255,0.04); color: #f1f5f9; }
+        .sidebar-tab.active { background: rgba(255,255,255,0.08); color: #fff; }
+        .tab-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.08); }
+        .tab-badge {
+          background: #ef4444; color: #fff; font-size: 0.65rem;
+          padding: 2px 6px; border-radius: 10px; font-weight: 700;
+        }
+
+        .sidebar-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          overflow: hidden;
         }
 
         @media (max-width: 1024px) {
