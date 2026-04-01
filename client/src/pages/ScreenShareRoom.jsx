@@ -375,11 +375,12 @@ const ScreenShareRoom = () => {
               </div>
               
               <div className="sidebar-content">
-                {activeTab === "chat" ? (
+                <div style={{ display: activeTab === "chat" ? "flex" : "none", height: "100%", width: "100%", flexDirection: "column" }}>
                   <ChatBox socket={socket} room={roomId} username={username} />
-                ) : (
+                </div>
+                <div style={{ display: activeTab === "video" ? "block" : "none", height: "100%", width: "100%" }}>
                   <VideoChat socket={socket} roomId={roomId} username={username} />
-                )}
+                </div>
               </div>
             </motion.div>
           )}

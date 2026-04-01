@@ -47,7 +47,8 @@ io.on("connection", (socket) => {
         seekTime: 0,
         lastUpdated: Date.now(),
         presenterId: null,       // Screen share presenter socket ID
-        isScreenSharing: false   // Whether someone is currently sharing
+        isScreenSharing: false,  // Whether someone is currently sharing
+        messages: []             // Chat history
       });
     } else if (incomingUrl && rooms.get(roomId).videoUrl !== incomingUrl) {
       const currentRoom = rooms.get(roomId);
@@ -57,11 +58,19 @@ io.on("connection", (socket) => {
     }
 
     const currentState = rooms.get(roomId);
+    if (!currentState.messages) currentState.messages = [];
     socket.emit("room_state", currentState);
+    socket.emit("chat_history", currentState.messages);
   });
 
   // Chat Message
   socket.on("send_message", (data) => {
+    if (rooms.has(data.room)) {
+      const roomState = rooms.get(data.room);
+      if (!roomState.messages) roomState.messages = [];
+      roomState.messages.push(data);
+      if (roomState.messages.length > 100) roomState.messages.shift();
+    }
     socket.to(data.room).emit("receive_message", data);
   });
 

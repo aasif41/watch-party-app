@@ -26,8 +26,15 @@ const ChatBox = ({ socket, room, username }) => {
 
   useEffect(() => {
     const handler = (data) => setMessageList((list) => [...list, data]);
+    const historyHandler = (history) => setMessageList(history);
+
     socket.on("receive_message", handler);
-    return () => socket.off("receive_message", handler);
+    socket.on("chat_history", historyHandler);
+
+    return () => {
+      socket.off("receive_message", handler);
+      socket.off("chat_history", historyHandler);
+    };
   }, [socket]);
 
   return (
