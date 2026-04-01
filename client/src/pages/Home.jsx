@@ -384,8 +384,7 @@ const Home = () => {
   // Mode tabs config
   const modes = [
     { key: "youtube", label: "YouTube Party", icon: "🎬" },
-    // Only show Screen Share on desktop
-    ...(!isMobile ? [{ key: "screenshare", label: "Screen Share", icon: "🖥️" }] : []),
+    { key: "screenshare", label: "Screen Share", icon: "🖥️" },
   ];
 
   return (
@@ -775,8 +774,7 @@ const Home = () => {
             </motion.button>
 
             {/* Help Mode Tabs */}
-            {!isMobile && (
-              <div style={{
+            <div style={{
                 display: "flex", gap: "0",
                 background: "rgba(255,255,255,0.04)",
                 borderRadius: "12px", padding: "3px",
@@ -804,7 +802,6 @@ const Home = () => {
                   </motion.button>
                 ))}
               </div>
-            )}
           </div>
 
           {/* Section Title */}

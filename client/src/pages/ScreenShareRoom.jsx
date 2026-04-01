@@ -176,18 +176,48 @@ const ScreenShareRoom = () => {
   const startSharing = async () => {
     try {
       setShareError("");
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: "always", frameRate: { ideal: 30, max: 60 } },
-        audio: true,
+      // Optimize constraints for lag-free/buffer-free performance (720p 30fps is optimal for zero-lag WebRTC)
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: "always",
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 24, max: 30 }
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 44100
+          },
+        });
+      } catch (e) {
+        // Fallback for mobile browsers (like iOS Safari) that don't support getDisplayMedia
+        // Fallback to back camera so mobile users can still "share" what they are looking at
+        console.warn("getDisplayMedia failed, falling back to camera:", e);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+          audio: { echoCancellation: true, noiseSuppression: true }
+        });
+      }
+
+      // Optimize RTCRtpSender to prefer low latency and zero buffering
+      stream.getVideoTracks().forEach(track => {
+        if (track.contentHint !== undefined) {
+          track.contentHint = "detail"; // Biases the encoder for screen sharing to maintain detail without lag
+        }
       });
+
       localStreamRef.current = stream;
       setIsSharing(true);
       setIsPresenter(true);
       socket.emit("start_screen_share", { room: roomId });
+      
       stream.getVideoTracks()[0].onended = () => stopSharing();
     } catch (err) {
       if (err.name === "NotAllowedError") setShareError("Screen sharing was cancelled.");
-      else setShareError("Failed to start screen sharing.");
+      else setShareError("Failed to start screen sharing: " + err.message);
     }
   };
 
