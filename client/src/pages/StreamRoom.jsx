@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSocket } from "../hooks/useSocket";
 import VideoPlayer from "../components/VideoPlayer";
 import ChatBox from "../components/ChatBox";
-import { motion } from "framer-motion";
+import VideoChat from "../components/VideoChat";
+import { motion, AnimatePresence } from "framer-motion";
 
 const StreamRoom = () => {
   const { roomId } = useParams();
@@ -13,12 +14,12 @@ const StreamRoom = () => {
 
   const [username] = useState(localStorage.getItem("wp_username") || "Watcher");
   const [videoUrl] = useState(localStorage.getItem("wp_videoUrl") || "");
-// --- We use refs for state that doesn't need to trigger re-renders
   const [playing, setPlaying] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [serverVideoUrl, setServerVideoUrl] = useState(videoUrl);
+  const [showVideoChat, setShowVideoChat] = useState(false);
+  const [showChat, setShowChat] = useState(true);
 
-  // Sync flags to prevent infinite loops when we programmatically change state
   const isHandlingSync = useRef(false);
   const lastSyncSent = useRef(0);
   const isBuffering = useRef(false);
@@ -27,24 +28,31 @@ const StreamRoom = () => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
     window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+
+    // Landscape lock on mobile
+    const lockOrientation = async () => {
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape");
+        }
+      } catch (e) {}
+    };
+    if (window.innerWidth < 768) lockOrientation();
+
+    return () => {
+      window.removeEventListener("resize", check);
+      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+    };
   }, []);
 
   useEffect(() => {
     if (!videoUrl && !serverVideoUrl) { navigate("/"); return; }
-    
-    // Join room, sending our URL (server determines whose URL wins based on who is host)
-    const joinRoom = () => {
-      socket.emit("join_room", { roomId, videoUrl });
-    };
 
+    const joinRoom = () => socket.emit("join_room", { roomId, videoUrl });
     joinRoom();
-    
+
     const handleRoomState = (state) => {
-      if (state.videoUrl && state.videoUrl !== serverVideoUrl) {
-        setServerVideoUrl(state.videoUrl);
-      }
-      
+      if (state.videoUrl && state.videoUrl !== serverVideoUrl) setServerVideoUrl(state.videoUrl);
       isHandlingSync.current = true;
       setPlaying(state.playing);
       const currentTime = playerRef.current?.getCurrentTime() || 0;
@@ -56,13 +64,9 @@ const StreamRoom = () => {
 
     const handleVideoStateUpdate = (data) => {
       isHandlingSync.current = true;
-      
       const currentTime = playerRef.current?.getCurrentTime() || 0;
-      if (Math.abs(currentTime - data.seekTime) > 1.5) {
-        playerRef.current?.seekTo(data.seekTime);
-      }
+      if (Math.abs(currentTime - data.seekTime) > 1.5) playerRef.current?.seekTo(data.seekTime);
       setPlaying(data.playing);
-      
       setTimeout(() => { isHandlingSync.current = false; }, 2000);
     };
 
@@ -86,182 +90,80 @@ const StreamRoom = () => {
     };
   }, [socket, roomId, videoUrl, navigate]);
 
-  // Periodic heartbeat / strict sync
-  // We'll hook this up to the VideoPlayer's onProgress
   const handleProgress = (state) => {
     if (!playing || isBuffering.current || isHandlingSync.current) return;
-    
     const now = Date.now();
-    // Send a pulse every 2 seconds to the server to update the room's current time
     if (now - lastSyncSent.current > 2000) {
-      socket.emit("sync_time", {
-        room: roomId,
-        time: state.playedSeconds,
-        playing: true
-      });
+      socket.emit("sync_time", { room: roomId, time: state.playedSeconds, playing: true });
       lastSyncSent.current = now;
     }
   };
 
   const handleSyncAction = (isPlaying) => {
-    if (playing === isPlaying) return; // FIX Echo Loop: Don't bounce states if we are already in the correct state
+    if (playing === isPlaying) return;
     setPlaying(isPlaying);
-    socket.emit("video_state_change", { 
-      room: roomId, 
-      playing: isPlaying, 
+    socket.emit("video_state_change", {
+      room: roomId, playing: isPlaying,
       seekTime: playerRef.current?.getCurrentTime() || 0
     });
   };
 
   const handleSeek = (seconds) => {
     if (isHandlingSync.current) return;
-    socket.emit("video_seek", {
-      room: roomId,
-      seekTime: seconds,
-      playing: playing
-    });
+    socket.emit("video_seek", { room: roomId, seekTime: seconds, playing });
   };
 
-  const handleBuffer = () => {
-    isBuffering.current = true;
-    // Purposely NOT pausing everyone else - causes severe lag loops for users with good connections.
-  };
-
-  const handleBufferEnd = () => {
-    isBuffering.current = false;
-  };
+  const handleBuffer = () => { isBuffering.current = true; };
+  const handleBufferEnd = () => { isBuffering.current = false; };
 
   return (
-    <div style={{
-      backgroundColor: "#000000",
-      minHeight: "100vh",
-      color: "#f8fafc",
-      display: "flex",
-      flexDirection: "column",
-      position: "relative",
-      overflowX: "hidden",
-      overflowY: "auto"
-    }}>
-      {/* Background Ambience (Subtle dark glow) */}
-      <div style={{
-        position: "absolute",
-        top: "-10%",
-        left: "-10%",
-        width: "60vw",
-        height: "60vw",
-        background: "radial-gradient(circle, rgba(124, 58, 237, 0.03) 0%, transparent 50%)",
-        filter: "blur(100px)",
-        pointerEvents: "none",
-        zIndex: 0
-      }} />
-      <div style={{
-        position: "absolute",
-        bottom: "-10%",
-        right: "-10%",
-        width: "60vw",
-        height: "60vw",
-        background: "radial-gradient(circle, rgba(59, 130, 246, 0.03) 0%, transparent 50%)",
-        filter: "blur(100px)",
-        pointerEvents: "none",
-        zIndex: 0
-      }} />
-
-      {/* Navigation Bar */}
-      <motion.nav 
-        initial={{ y: -50, opacity: 0 }}
+    <div className="stream-room-root">
+      {/* Header */}
+      <motion.header
+        initial={{ y: -40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        style={{
-          padding: isMobile ? "12px 16px" : "20px 40px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "rgba(0, 0, 0, 0.6)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-          zIndex: 10,
-          flexWrap: "wrap",
-          gap: "8px"
-        }}
+        transition={{ duration: 0.4 }}
+        className="stream-room-header"
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h1 style={{ margin: 0, fontSize: isMobile ? "18px" : "24px", fontWeight: "900", letterSpacing: "1px" }}>
-            WATCH<span style={{ color: "#3b82f6" }}>PARTY</span>
-          </h1>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "10px" : "20px" }}>
-          <div style={{
-            background: "rgba(255, 255, 255, 0.05)",
-            padding: isMobile ? "6px 10px" : "8px 16px",
-            borderRadius: "12px",
-            fontSize: isMobile ? "12px" : "14px",
-            color: "#94a3b8",
-            border: "1px solid rgba(255,255,255,0.05)"
-          }}>
-            Room: <strong style={{ color: "#fff", marginLeft: "4px" }}>{roomId}</strong>
+        <div className="header-left">
+          <span className="brand">Watch<span className="brand-accent">Party</span></span>
+          <span className="room-badge">{roomId}</span>
+          <div className="sync-indicator">
+            <span className="sync-dot" />
+            <span className="sync-text">Synced</span>
           </div>
-          <button 
-            onClick={() => navigate("/")}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#ef4444",
-              fontWeight: "600",
-              cursor: "pointer",
-              padding: "8px 16px",
-              borderRadius: "10px",
-              transition: "background 0.2s"
-            }}
-            onMouseOver={(e) => e.target.style.background = "rgba(239, 68, 68, 0.1)"}
-            onMouseOut={(e) => e.target.style.background = "transparent"}
+        </div>
+        <div className="header-actions">
+          <button
+            className={`btn-icon ${showVideoChat ? "active" : ""}`}
+            onClick={() => setShowVideoChat(!showVideoChat)}
+            title="Video Chat"
           >
-            Leave
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="23 7 16 12 23 17 23 7" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
           </button>
+          <button
+            className={`btn-icon ${showChat ? "active" : ""}`}
+            onClick={() => setShowChat(!showChat)}
+            title="Chat"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
+          <button className="btn-leave" onClick={() => navigate("/")}>Leave</button>
         </div>
-      </motion.nav>
+      </motion.header>
 
-      {/* Main Content Area */}
-      <div 
-        className="stream-layout"
-        style={{
-          display: "flex",
-          flex: 1,
-          padding: isMobile ? "12px" : "30px 40px",
-          gap: isMobile ? "16px" : "30px",
-          maxWidth: "1800px",
-          margin: "0 auto",
-          width: "100%",
-          boxSizing: "border-box",
-          zIndex: 10
-        }}
-      >
-        {/* Video Column */}
-        <motion.div 
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            gap: "20px",
-            minWidth: 0 // Prevents flex shrink issues
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? "16px" : "20px", fontWeight: "600", color: "#f8fafc" }}>
-              Now Playing
-            </h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <div style={{ width: isMobile ? "8px" : "10px", height: isMobile ? "8px" : "10px", borderRadius: "50%", background: "#ef4444", animation: "pulse 2s infinite" }} />
-              <span style={{ fontSize: isMobile ? "12px" : "14px", color: "#94a3b8", fontWeight: "500" }}>Live Sync Active</span>
-            </div>
-          </div>
-
-          <VideoPlayer 
-            url={serverVideoUrl || videoUrl} 
-            playing={playing} 
-            onPlay={() => handleSyncAction(true)} 
+      {/* Body */}
+      <div className="stream-room-body">
+        <div className="main-content">
+          <VideoPlayer
+            url={serverVideoUrl || videoUrl}
+            playing={playing}
+            onPlay={() => handleSyncAction(true)}
             onPause={() => handleSyncAction(false)}
             onProgress={handleProgress}
             onSeek={handleSeek}
@@ -269,77 +171,192 @@ const StreamRoom = () => {
             onBufferEnd={handleBufferEnd}
             playerRef={playerRef}
           />
-          
-          <div style={{
-            background: "rgba(255, 255, 255, 0.02)",
-            border: "1px solid rgba(255, 255, 255, 0.05)",
-            padding: "16px 20px",
-            borderRadius: "16px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px"
-          }}>
-            <div style={{
-              width: "40px", height: "40px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #7c3aed, #3b82f6)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: "bold", fontSize: "16px"
-            }}>
-              {username.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div style={{ fontSize: "13px", color: "#94a3b8" }}>Joined as</div>
-              <div style={{ fontSize: "16px", fontWeight: "600", color: "#f8fafc" }}>{username}</div>
-            </div>
-          </div>
-        </motion.div>
 
-        {/* Chat Column */}
-        <motion.div 
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="chat-container"
-          style={{
-            width: "400px",
-            display: "flex",
-            flexDirection: "column",
-            flexShrink: 0
-          }}
-        >
-          <ChatBox socket={socket} room={roomId} username={username} />
-        </motion.div>
+          {/* Video Chat */}
+          <AnimatePresence>
+            {showVideoChat && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25 }}
+                style={{ overflow: "hidden" }}
+              >
+                <VideoChat socket={socket} roomId={roomId} username={username} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Chat */}
+        <AnimatePresence>
+          {showChat && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: isMobile ? "100%" : "380px", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="chat-panel"
+            >
+              <ChatBox socket={socket} room={roomId} username={username} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <style>{`
-        @keyframes pulse {
-          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-          70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
-        
-        * {
-          box-sizing: border-box;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        .stream-room-root {
+          background: #0c0c0c;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          color: #e2e8f0;
+          font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+          overflow: hidden;
         }
 
-        /* Responsive Layout */
+        .stream-room-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 20px;
+          height: 52px;
+          min-height: 52px;
+          background: rgba(12,12,12,0.95);
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          z-index: 50;
+          backdrop-filter: blur(12px);
+        }
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .brand {
+          font-size: 1rem;
+          font-weight: 700;
+          letter-spacing: -0.3px;
+          color: #f1f5f9;
+        }
+        .brand-accent { color: #3b82f6; }
+        .room-badge {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: #64748b;
+          background: rgba(255,255,255,0.05);
+          padding: 3px 10px;
+          border-radius: 6px;
+          letter-spacing: 0.5px;
+          border: 1px solid rgba(255,255,255,0.05);
+        }
+        .sync-indicator {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .sync-dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #ef4444;
+          animation: syncPulse 2s infinite;
+        }
+        .sync-text {
+          font-size: 0.68rem;
+          color: #64748b;
+          font-weight: 500;
+        }
+        @keyframes syncPulse {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+          50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(239,68,68,0); }
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .btn-icon {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: #94a3b8;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+        }
+        .btn-icon:hover { background: rgba(255,255,255,0.08); color: #f1f5f9; }
+        .btn-icon.active { background: rgba(59,130,246,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+        .btn-leave {
+          background: transparent;
+          border: 1px solid rgba(239,68,68,0.25);
+          color: #f87171;
+          padding: 6px 14px;
+          border-radius: 8px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .btn-leave:hover { background: rgba(239,68,68,0.1); }
+
+        .stream-room-body {
+          flex: 1;
+          display: flex;
+          overflow: hidden;
+          min-height: 0;
+        }
+        .main-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: 12px;
+          min-width: 0;
+          overflow-y: auto;
+        }
+
+        .chat-panel {
+          border-left: 1px solid rgba(255,255,255,0.05);
+          overflow: hidden;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
         @media (max-width: 1024px) {
-          .stream-layout { 
-            flex-direction: column !important; 
-            padding: 20px !important;
-            gap: 20px !important;
-          }
-          .chat-container { 
-            width: 100% !important; 
-            height: 500px !important; 
+          .stream-room-body { flex-direction: column; }
+          .chat-panel {
+            border-left: none;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            width: 100% !important;
+            height: 350px !important;
           }
         }
-        
         @media (max-width: 600px) {
-          nav { padding: 16px 20px !important; }
-          .stream-layout { padding: 16px !important; }
-          .chat-container { height: 400px !important; }
+          .stream-room-header { padding: 0 12px; height: 46px; min-height: 46px; }
+          .brand { font-size: 0.85rem; }
+          .room-badge { display: none; }
+          .sync-text { display: none; }
+          .btn-leave { padding: 5px 10px; font-size: 0.7rem; }
+          .btn-icon { width: 32px; height: 32px; }
+          .main-content { padding: 8px; gap: 8px; }
+          .chat-panel { height: 300px !important; }
+        }
+        @media (max-height: 500px) and (orientation: landscape) {
+          .stream-room-header { height: 40px; min-height: 40px; }
+          .stream-room-body { flex-direction: row; }
+          .chat-panel {
+            border-left: 1px solid rgba(255,255,255,0.05);
+            border-top: none;
+            width: 320px !important;
+            height: auto !important;
+          }
+          .main-content { padding: 6px; gap: 6px; }
         }
       `}</style>
     </div>

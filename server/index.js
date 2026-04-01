@@ -26,37 +26,41 @@ const rooms = new Map();
 io.on("connection", (socket) => {
   console.log(`User Connected: ${socket.id}`);
 
+  // ========================
+  // YOUTUBE ROOM EVENTS (unchanged)
+  // ========================
+
   // Room Join logic
   socket.on("join_room", (roomData) => {
-    // If roomData is an object, it has roomId and videoUrl. If it's a string, it's just roomId.
     const roomId = typeof roomData === 'object' ? roomData.roomId : roomData;
     const incomingUrl = typeof roomData === 'object' ? roomData.videoUrl : null;
+    const roomType = typeof roomData === 'object' ? (roomData.roomType || 'youtube') : 'youtube';
     
     socket.join(roomId);
-    console.log(`User ${socket.id} joined room: ${roomId}`);
+    console.log(`User ${socket.id} joined room: ${roomId} (type: ${roomType})`);
 
-    // If room doesn't exist, create it
     if (!rooms.has(roomId)) {
       rooms.set(roomId, {
+        roomType,
         videoUrl: incomingUrl || "",
         playing: false,
         seekTime: 0,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
+        presenterId: null,       // Screen share presenter socket ID
+        isScreenSharing: false   // Whether someone is currently sharing
       });
     } else if (incomingUrl && rooms.get(roomId).videoUrl !== incomingUrl) {
-      // If room exists but host is playing a new video, update the URL
       const currentRoom = rooms.get(roomId);
       currentRoom.videoUrl = incomingUrl;
-      currentRoom.seekTime = 0; // Reset time for new video
+      currentRoom.seekTime = 0;
       rooms.set(roomId, currentRoom);
     }
 
-    // Send the current room state to the newly joined user so they sync immediately
     const currentState = rooms.get(roomId);
     socket.emit("room_state", currentState);
   });
 
-  // Chat Message handle karna
+  // Chat Message
   socket.on("send_message", (data) => {
     socket.to(data.room).emit("receive_message", data);
   });
@@ -73,7 +77,7 @@ io.on("connection", (socket) => {
     socket.to(data.room).emit("video_state_update", data);
   });
 
-  // Periodic heartbeat sync from exact position
+  // Periodic heartbeat sync
   socket.on("sync_time", (data) => {
     if (rooms.has(data.room)) {
       const roomState = rooms.get(data.room);
@@ -81,9 +85,6 @@ io.on("connection", (socket) => {
       roomState.playing = data.playing;
       roomState.lastUpdated = Date.now();
       rooms.set(data.room, roomState);
-      
-      // We can optionally broadcast to others, but we'll let StreamRoom handle drift locally
-      // For now, socket.to(data.room).emit("sync_time", data); could be spammy
     }
   });
 
@@ -99,8 +100,118 @@ io.on("connection", (socket) => {
     socket.to(data.room).emit("video_seek", data);
   });
 
+  // ========================
+  // SCREEN SHARE SIGNALING
+  // ========================
+
+  // Presenter starts screen share — notify all viewers in the room
+  socket.on("start_screen_share", (data) => {
+    const { room } = data;
+    if (rooms.has(room)) {
+      const roomState = rooms.get(room);
+      roomState.presenterId = socket.id;
+      roomState.isScreenSharing = true;
+      rooms.set(room, roomState);
+    }
+    socket.to(room).emit("screen_share_started", { presenterId: socket.id });
+    console.log(`Screen share started by ${socket.id} in room ${room}`);
+  });
+
+  // Presenter stops screen share
+  socket.on("stop_screen_share", (data) => {
+    const { room } = data;
+    if (rooms.has(room)) {
+      const roomState = rooms.get(room);
+      roomState.presenterId = null;
+      roomState.isScreenSharing = false;
+      rooms.set(room, roomState);
+    }
+    socket.to(room).emit("screen_share_stopped", { presenterId: socket.id });
+    console.log(`Screen share stopped by ${socket.id} in room ${room}`);
+  });
+
+  // WebRTC offer from presenter to a specific viewer
+  socket.on("screen_share_offer", (data) => {
+    const { to, offer, room } = data;
+    io.to(to).emit("screen_share_offer", { from: socket.id, offer, room });
+  });
+
+  // WebRTC answer from viewer back to presenter
+  socket.on("screen_share_answer", (data) => {
+    const { to, answer, room } = data;
+    io.to(to).emit("screen_share_answer", { from: socket.id, answer, room });
+  });
+
+  // ICE candidate relay (screen share)
+  socket.on("screen_ice_candidate", (data) => {
+    const { to, candidate, room } = data;
+    io.to(to).emit("screen_ice_candidate", { from: socket.id, candidate, room });
+  });
+
+  // Viewer requests the presenter to send them the stream
+  socket.on("request_screen_share", (data) => {
+    const { room } = data;
+    if (rooms.has(room)) {
+      const roomState = rooms.get(room);
+      if (roomState.presenterId && roomState.isScreenSharing) {
+        // Tell the presenter about this new viewer
+        io.to(roomState.presenterId).emit("viewer_joined", { viewerId: socket.id, room });
+      }
+    }
+  });
+
+  // ========================
+  // VIDEO CHAT SIGNALING
+  // ========================
+
+  // Video chat offer (peer-to-peer between participants)
+  socket.on("video_chat_offer", (data) => {
+    const { to, offer, room } = data;
+    io.to(to).emit("video_chat_offer", { from: socket.id, offer, room });
+  });
+
+  // Video chat answer
+  socket.on("video_chat_answer", (data) => {
+    const { to, answer, room } = data;
+    io.to(to).emit("video_chat_answer", { from: socket.id, answer, room });
+  });
+
+  // Video chat ICE candidate
+  socket.on("video_chat_ice", (data) => {
+    const { to, candidate, room } = data;
+    io.to(to).emit("video_chat_ice", { from: socket.id, candidate, room });
+  });
+
+  // Notify room when someone enables/disables video chat
+  socket.on("video_chat_enabled", (data) => {
+    socket.to(data.room).emit("peer_video_chat_enabled", {
+      peerId: socket.id,
+      username: data.username
+    });
+  });
+
+  socket.on("video_chat_disabled", (data) => {
+    socket.to(data.room).emit("peer_video_chat_disabled", {
+      peerId: socket.id
+    });
+  });
+
+  // ========================
+  // DISCONNECT
+  // ========================
+
   socket.on("disconnect", () => {
     console.log("User Disconnected", socket.id);
+    // Clean up screen share if the presenter disconnects
+    rooms.forEach((roomState, roomId) => {
+      if (roomState.presenterId === socket.id) {
+        roomState.presenterId = null;
+        roomState.isScreenSharing = false;
+        rooms.set(roomId, roomState);
+        io.to(roomId).emit("screen_share_stopped", { presenterId: socket.id });
+        console.log(`Screen share auto-stopped in room ${roomId} (presenter disconnected)`);
+      }
+    });
   });
 });
 

@@ -10,19 +10,14 @@ const ChatBox = ({ socket, room, username }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messageList]);
+  useEffect(() => { scrollToBottom(); }, [messageList]);
 
   const sendMessage = async () => {
     if (currentMessage.trim() !== "") {
       const messageData = {
-        room: room,
-        author: username,
-        message: currentMessage,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        room, author: username, message: currentMessage,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-
       await socket.emit("send_message", messageData);
       setMessageList((list) => [...list, messageData]);
       setCurrentMessage("");
@@ -30,66 +25,27 @@ const ChatBox = ({ socket, room, username }) => {
   };
 
   useEffect(() => {
-    const receiveMessageHandler = (data) => {
-      setMessageList((list) => [...list, data]);
-    };
-    socket.on("receive_message", receiveMessageHandler);
-    return () => socket.off("receive_message", receiveMessageHandler);
+    const handler = (data) => setMessageList((list) => [...list, data]);
+    socket.on("receive_message", handler);
+    return () => socket.off("receive_message", handler);
   }, [socket]);
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      background: 'rgba(5, 5, 5, 0.6)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      borderRadius: '24px',
-      border: '1px solid rgba(255, 255, 255, 0.05)',
-      overflow: 'hidden',
-      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-    }}>
+    <div className="chatbox-root">
       {/* Header */}
-      <div style={{
-        padding: '20px 24px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-        background: 'rgba(255, 255, 255, 0.02)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: '#f8fafc' }}>Live Chat</h3>
+      <div className="chatbox-header">
+        <div className="chatbox-header-left">
+          <span className="chatbox-dot" />
+          <span className="chatbox-title">Chat</span>
         </div>
-        <span style={{ fontSize: '0.8rem', color: '#64748b', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: '12px' }}>
-          {messageList.length} Messages
-        </span>
+        <span className="chatbox-count">{messageList.length}</span>
       </div>
 
-      {/* Body */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        scrollbarWidth: 'thin',
-        scrollbarColor: 'rgba(255, 255, 255, 0.1) transparent'
-      }}>
+      {/* Messages */}
+      <div className="chatbox-messages">
         {messageList.length === 0 && (
-          <div style={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#64748b',
-            fontSize: '0.9rem',
-            fontStyle: 'italic'
-          }}>
-            No messages yet. Start the conversation!
+          <div className="chatbox-empty">
+            <p>No messages yet</p>
           </div>
         )}
         <AnimatePresence>
@@ -98,35 +54,15 @@ const ChatBox = ({ socket, room, username }) => {
             return (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                style={{
-                  alignSelf: isMe ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: isMe ? 'flex-end' : 'flex-start'
-                }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`msg-row ${isMe ? "msg-mine" : "msg-other"}`}
               >
-                {!isMe && (
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '4px', marginLeft: '4px' }}>
-                    {content.author}
-                  </span>
-                )}
-                <div style={{
-                  background: isMe ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isMe ? 'none' : '1px solid rgba(255, 255, 255, 0.1)',
-                  padding: '12px 16px',
-                  borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  color: '#fff',
-                  boxShadow: isMe ? '0 4px 15px rgba(59, 130, 246, 0.3)' : 'none',
-                  wordBreak: 'break-word'
-                }}>
-                  <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.4' }}>{content.message}</p>
+                {!isMe && <span className="msg-author">{content.author}</span>}
+                <div className={`msg-bubble ${isMe ? "bubble-mine" : "bubble-other"}`}>
+                  <p className="msg-text">{content.message}</p>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px' }}>
-                  {content.time}
-                </span>
+                <span className="msg-time">{content.time}</span>
               </motion.div>
             );
           })}
@@ -134,56 +70,186 @@ const ChatBox = ({ socket, room, username }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Footer */}
-      <div style={{
-        padding: '20px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-        background: 'rgba(255, 255, 255, 0.02)'
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          background: 'rgba(0, 0, 0, 0.2)',
-          padding: '6px',
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.05)'
-        }}>
+      {/* Input */}
+      <div className="chatbox-input-area">
+        <div className="chatbox-input-wrap">
           <input
             type="text"
             value={currentMessage}
-            placeholder="Type a message..."
-            onChange={(event) => setCurrentMessage(event.target.value)}
-            onKeyPress={(event) => event.key === "Enter" && sendMessage()}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              color: '#fff',
-              padding: '10px 14px',
-              outline: 'none',
-              fontSize: '0.95rem'
-            }}
+            placeholder="Message..."
+            onChange={(e) => setCurrentMessage(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            className="chatbox-input"
           />
           <motion.button
-            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={sendMessage}
-            style={{
-              background: '#3b82f6',
-              color: '#fff',
-              border: 'none',
-              padding: '0 20px',
-              borderRadius: '12px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              boxShadow: '0 0 15px rgba(59, 130, 246, 0.4)',
-              transition: 'background 0.2s'
-            }}
+            className="chatbox-send"
+            disabled={!currentMessage.trim()}
           >
-            Send
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
           </motion.button>
         </div>
       </div>
+
+      <style>{`
+        .chatbox-root {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          background: #0f0f0f;
+          font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+          overflow: hidden;
+        }
+
+        .chatbox-header {
+          padding: 14px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-shrink: 0;
+        }
+        .chatbox-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .chatbox-dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #22c55e;
+        }
+        .chatbox-title {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #f1f5f9;
+        }
+        .chatbox-count {
+          font-size: 0.7rem;
+          color: #475569;
+          background: rgba(255,255,255,0.04);
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-weight: 500;
+        }
+
+        .chatbox-messages {
+          flex: 1;
+          overflow-y: auto;
+          padding: 12px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,0.06) transparent;
+        }
+        .chatbox-messages::-webkit-scrollbar { width: 4px; }
+        .chatbox-messages::-webkit-scrollbar-track { background: transparent; }
+        .chatbox-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+        .chatbox-empty {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .chatbox-empty p {
+          color: #334155;
+          font-size: 0.8rem;
+        }
+
+        .msg-row {
+          display: flex;
+          flex-direction: column;
+          max-width: 80%;
+        }
+        .msg-mine { align-self: flex-end; align-items: flex-end; }
+        .msg-other { align-self: flex-start; align-items: flex-start; }
+
+        .msg-author {
+          font-size: 0.65rem;
+          color: #64748b;
+          margin-bottom: 3px;
+          padding-left: 2px;
+        }
+
+        .msg-bubble {
+          padding: 8px 12px;
+          border-radius: 14px;
+          word-break: break-word;
+        }
+        .bubble-mine {
+          background: #3b82f6;
+          border-bottom-right-radius: 4px;
+        }
+        .bubble-other {
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-bottom-left-radius: 4px;
+        }
+
+        .msg-text {
+          margin: 0;
+          font-size: 0.85rem;
+          line-height: 1.45;
+          color: #f1f5f9;
+        }
+
+        .msg-time {
+          font-size: 0.6rem;
+          color: #475569;
+          margin-top: 3px;
+          padding: 0 2px;
+        }
+
+        .chatbox-input-area {
+          padding: 12px 14px;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
+        }
+        .chatbox-input-wrap {
+          display: flex;
+          gap: 8px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 12px;
+          padding: 4px 4px 4px 14px;
+          align-items: center;
+        }
+        .chatbox-input {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #f1f5f9;
+          font-size: 0.85rem;
+          outline: none;
+          padding: 8px 0;
+          font-family: inherit;
+        }
+        .chatbox-input::placeholder { color: #334155; }
+
+        .chatbox-send {
+          width: 34px; height: 34px;
+          border-radius: 8px;
+          background: #3b82f6;
+          color: #fff;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: opacity 0.15s;
+          flex-shrink: 0;
+        }
+        .chatbox-send:disabled {
+          opacity: 0.3;
+          cursor: default;
+        }
+        .chatbox-send:hover:not(:disabled) { opacity: 0.85; }
+      `}</style>
     </div>
   );
 };
