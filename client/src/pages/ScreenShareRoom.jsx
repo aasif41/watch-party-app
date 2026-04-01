@@ -24,6 +24,7 @@ const ScreenShareRoom = () => {
   const [isPresenter, setIsPresenter] = useState(false);
   const [shareError, setShareError] = useState("");
   const [activeTab, setActiveTab] = useState("chat"); // 'chat' or 'video'
+  const [showSidebar, setShowSidebar] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
 
@@ -196,6 +197,11 @@ const ScreenShareRoom = () => {
   }, [remoteStream]);
 
   const startSharing = async () => {
+    if (isMobile) {
+      setShareError("This feature is only available on PC.");
+      setTimeout(() => setShareError(""), 3000);
+      return;
+    }
     try {
       setShareError("");
       // Optimize constraints for lag-free/buffer-free performance (720p 30fps is optimal for zero-lag WebRTC)
@@ -209,9 +215,11 @@ const ScreenShareRoom = () => {
             frameRate: { ideal: 24, max: 30 }
           },
           audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            sampleRate: 44100
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            sampleRate: 48000,
+            channelCount: 2
           },
         });
       } catch (e) {
@@ -255,13 +263,7 @@ const ScreenShareRoom = () => {
     setIsPresenter(false);
   }, [isPresenter, socket, roomId]);
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  };
+
 
   const hasStream = isPresenter ? !!localStreamRef.current && isSharing : !!remoteStream;
 
@@ -282,7 +284,7 @@ const ScreenShareRoom = () => {
 
         <div className="header-actions">
           {/* Action buttons */}
-          {!isSharing && !isMobile ? (
+          {!isSharing ? (
             <motion.button whileTap={{ scale: 0.95 }} className="btn-share" onClick={startSharing}>
               Share Screen
             </motion.button>
@@ -293,12 +295,13 @@ const ScreenShareRoom = () => {
           ) : null}
 
           <button
-            className="btn-icon"
-            onClick={toggleFullscreen}
-            title="Fullscreen"
+            className={`btn-icon ${showSidebar ? "active" : ""}`}
+            onClick={() => setShowSidebar(!showSidebar)}
+            title="Toggle Sidebar"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="15" y1="3" x2="15" y2="21"></line>
             </svg>
           </button>
 
@@ -360,7 +363,7 @@ const ScreenShareRoom = () => {
         </div>
 
         {/* Sidebar Panel */}
-        <div className="chat-panel" style={{ width: isMobile ? "100%" : "380px" }}>
+        <div className="chat-panel" style={{ width: isMobile ? "100%" : "380px", display: showSidebar ? "flex" : "none" }}>
           <div className="sidebar-tabs">
                 <button
                   className={`sidebar-tab ${activeTab === "chat" ? "active" : ""}`}

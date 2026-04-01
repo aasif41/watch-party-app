@@ -18,6 +18,7 @@ const StreamRoom = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [serverVideoUrl, setServerVideoUrl] = useState(videoUrl);
   const [activeTab, setActiveTab] = useState("chat");
+  const [showSidebar, setShowSidebar] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const isHandlingSync = useRef(false);
@@ -131,13 +132,7 @@ const StreamRoom = () => {
   const handleBuffer = () => { isBuffering.current = true; };
   const handleBufferEnd = () => { isBuffering.current = false; };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  };
+
 
   return (
     <div className="stream-room-root">
@@ -158,12 +153,13 @@ const StreamRoom = () => {
         </div>
         <div className="header-actions">
           <button
-            className="btn-icon"
-            onClick={toggleFullscreen}
-            title="Fullscreen"
+            className={`btn-icon ${showSidebar ? "active" : ""}`}
+            onClick={() => setShowSidebar(!showSidebar)}
+            title="Toggle Sidebar"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="15" y1="3" x2="15" y2="21"></line>
             </svg>
           </button>
           <button className="btn-leave" onClick={() => navigate("/")}>Leave</button>
@@ -187,7 +183,7 @@ const StreamRoom = () => {
         </div>
 
         {/* Sidebar Panel */}
-        <div className="chat-panel" style={{ width: isMobile ? "100%" : "380px" }}>
+        <div className="chat-panel" style={{ width: isMobile ? "100%" : "380px", display: showSidebar ? "flex" : "none" }}>
           <div className="sidebar-tabs">
                 <button
                   className={`sidebar-tab ${activeTab === "chat" ? "active" : ""}`}
