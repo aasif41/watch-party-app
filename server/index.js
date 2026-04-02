@@ -175,14 +175,14 @@ io.on("connection", (socket) => {
 
   // Video chat offer (peer-to-peer between participants)
   socket.on("video_chat_offer", (data) => {
-    const { to, offer, room } = data;
-    io.to(to).emit("video_chat_offer", { from: socket.id, offer, room });
+    const { to, offer, room, username } = data;
+    io.to(to).emit("video_chat_offer", { from: socket.id, offer, room, username });
   });
 
   // Video chat answer
   socket.on("video_chat_answer", (data) => {
-    const { to, answer, room } = data;
-    io.to(to).emit("video_chat_answer", { from: socket.id, answer, room });
+    const { to, answer, room, username } = data;
+    io.to(to).emit("video_chat_answer", { from: socket.id, answer, room, username });
   });
 
   // Video chat ICE candidate

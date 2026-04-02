@@ -238,10 +238,11 @@ const VideoChat = ({ socket, roomId, username }) => {
   }, [socket, roomId]);
 
   const toggleMute = () => {
-    // Mute both processed and raw audio tracks
+    // Mute processed audio tracks (noise gate output) + raw audio tracks
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
     }
+    // Raw audio tracks are separate (noise gate creates new tracks), so toggle those too
     if (rawStreamRef.current) {
       rawStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
     }
@@ -249,11 +250,11 @@ const VideoChat = ({ socket, roomId, username }) => {
   };
 
   const toggleCamera = () => {
+    // ONLY toggle on localStreamRef — the video track is the SAME object in both
+    // localStreamRef and rawStreamRef (added via addTrack), so toggling both
+    // would toggle it OFF then ON again, cancelling out!
     if (localStreamRef.current) {
       localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !t.enabled; });
-    }
-    if (rawStreamRef.current) {
-      rawStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !t.enabled; });
     }
     setIsCamOff(prev => !prev);
   };
@@ -295,10 +296,10 @@ const VideoChat = ({ socket, roomId, username }) => {
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit("video_chat_offer", { to: peerId, offer: pc.localDescription, room: roomId });
+      socket.emit("video_chat_offer", { to: peerId, offer: pc.localDescription, room: roomId, username });
     };
 
-    const handleOffer = async ({ from, offer }) => {
+    const handleOffer = async ({ from, offer, username: peerUsername }) => {
       if (!localStreamRef.current) return;
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnectionsRef.current.set(from, pc);
@@ -308,7 +309,7 @@ const VideoChat = ({ socket, roomId, username }) => {
         setPeers((prev) => {
           const existing = prev.find((p) => p.peerId === from);
           if (existing) return prev.map((p) => p.peerId === from ? { ...p, stream: event.streams[0] } : p);
-          return [...prev, { peerId: from, username: "Peer", stream: event.streams[0] }];
+          return [...prev, { peerId: from, username: peerUsername || "Peer", stream: event.streams[0] }];
         });
       };
 
@@ -319,7 +320,7 @@ const VideoChat = ({ socket, roomId, username }) => {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket.emit("video_chat_answer", { to: from, answer: pc.localDescription, room: roomId });
+      socket.emit("video_chat_answer", { to: from, answer: pc.localDescription, room: roomId, username });
     };
 
     const handleAnswer = async ({ from, answer }) => {

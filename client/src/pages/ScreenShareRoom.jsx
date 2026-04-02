@@ -27,7 +27,7 @@ const optimizeSenderParams = async (pc) => {
         if (!params.encodings || params.encodings.length === 0) {
           params.encodings = [{}];
         }
-        params.encodings[0].maxBitrate = 2_500_000;        // 2.5 Mbps — enough for 720p smooth
+        params.encodings[0].maxBitrate = 4_000_000;        // 4 Mbps — HD lag-free streaming
         params.encodings[0].maxFramerate = 30;              // Smooth 30fps
         params.encodings[0].scaleResolutionDownBy = 1;      // No downscaling
         params.degradationPreference = "maintain-framerate"; // Favor smooth motion over resolution
