@@ -71,7 +71,30 @@ const ScreenShareRoom = () => {
     };
     check();
     window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+
+    // Request landscape lock on mobile if API is available (works on Android, silently fails on iOS)
+    const lockOrientation = async () => {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen().catch(() => {});
+        }
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape").catch(() => {});
+        }
+      } catch (e) {
+        console.warn("Fullscreen/Orientation lock failed", e);
+      }
+    };
+    if (window.innerWidth < 768) lockOrientation();
+
+    return () => {
+      window.removeEventListener("resize", check);
+      try {
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      } catch (e) {}
+    };
   }, []);
 
   // Unread badge logic
@@ -680,19 +703,6 @@ const ScreenShareRoom = () => {
           .chat-panel { height: 300px !important; }
         }
 
-        /* ====== FORCED LANDSCAPE ON MOBILE (CSS-based, works on iOS & Android) ====== */
-        @media (max-width: 768px) and (orientation: portrait) {
-          .screen-room-root {
-            transform: rotate(90deg);
-            transform-origin: top left;
-            width: 100vh;
-            height: 100vw;
-            position: absolute;
-            top: 0;
-            left: 100vw;
-            overflow: hidden;
-          }
-        }
 
         /* Landscape mobile optimization */
         @media (max-height: 500px) and (orientation: landscape) {

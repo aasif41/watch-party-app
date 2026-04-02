@@ -33,7 +33,24 @@ const StreamRoom = () => {
     };
     check();
     window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+
+    // Landscape lock on mobile (works on Android, silently fails on iOS)
+    const lockOrientation = async () => {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen().catch(() => {});
+        }
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape").catch(() => {});
+        }
+      } catch (e) {}
+    };
+    if (window.innerWidth < 768) lockOrientation();
+
+    return () => {
+      window.removeEventListener("resize", check);
+      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+    };
   }, []);
 
   useEffect(() => {
@@ -385,19 +402,6 @@ const StreamRoom = () => {
           .chat-panel { height: 300px !important; }
         }
 
-        /* ====== FORCED LANDSCAPE ON MOBILE (CSS-based, works on iOS & Android) ====== */
-        @media (max-width: 768px) and (orientation: portrait) {
-          .stream-room-root {
-            transform: rotate(90deg);
-            transform-origin: top left;
-            width: 100vh;
-            height: 100vw;
-            position: absolute;
-            top: 0;
-            left: 100vw;
-            overflow: hidden;
-          }
-        }
 
         @media (max-height: 500px) and (orientation: landscape) {
           .stream-room-header { height: 40px; min-height: 40px; }
