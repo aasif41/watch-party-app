@@ -56,7 +56,107 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
   ],
+};
+
+/* ======================================================
+   NOISE GATE — Web Audio API noise suppression
+   Creates an audio processing chain:
+   Mic → Analyser (volume detection) → Gain (gate) → Output
+   Silences audio when volume is below threshold (kills
+   fan noise, keyboard clicks, ambient hum, etc.)
+   ====================================================== */
+const createNoiseGate = (stream) => {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 16000, // Voice-optimized, low bandwidth
+    });
+    const source = audioCtx.createMediaStreamSource(stream);
+
+    // Analyser for volume detection
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.5;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+    // Gain node acts as the gate
+    const gateGain = audioCtx.createGain();
+    gateGain.gain.value = 1;
+
+    // Highpass filter to cut low-frequency rumble (below 85Hz)
+    const highpass = audioCtx.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 85;
+    highpass.Q.value = 0.7;
+
+    // Lowpass filter to cut high-frequency hiss (above 8kHz for voice)
+    const lowpass = audioCtx.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 8000;
+    lowpass.Q.value = 0.7;
+
+    // Compressor to smooth out volume spikes
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -30;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+
+    // Connect chain: source → highpass → lowpass → analyser → gateGain → compressor → destination
+    const dest = audioCtx.createMediaStreamDestination();
+    source.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(analyser);
+    analyser.connect(gateGain);
+    gateGain.connect(compressor);
+    compressor.connect(dest);
+
+    // Noise gate loop — check volume ~30 times per second
+    const NOISE_THRESHOLD = 18; // Volume below this = silence (0-255 scale)
+    const GATE_ATTACK = 0.01;   // Seconds to open gate
+    const GATE_RELEASE = 0.15;  // Seconds to close gate (smooth tail-off)
+    let isOpen = false;
+    let gateInterval = setInterval(() => {
+      analyser.getByteFrequencyData(dataArray);
+      // Calculate average volume
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+      const avg = sum / dataArray.length;
+
+      if (avg > NOISE_THRESHOLD) {
+        if (!isOpen) {
+          gateGain.gain.linearRampToValueAtTime(1, audioCtx.currentTime + GATE_ATTACK);
+          isOpen = true;
+        }
+      } else {
+        if (isOpen) {
+          gateGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + GATE_RELEASE);
+          isOpen = false;
+        }
+      }
+    }, 33);
+
+    return {
+      processedStream: dest.stream,
+      audioContext: audioCtx,
+      cleanup: () => {
+        clearInterval(gateInterval);
+        source.disconnect();
+        highpass.disconnect();
+        lowpass.disconnect();
+        analyser.disconnect();
+        gateGain.disconnect();
+        compressor.disconnect();
+        if (audioCtx.state !== "closed") audioCtx.close().catch(() => {});
+      }
+    };
+  } catch (e) {
+    console.warn("NoiseGate: Web Audio not available, using raw stream", e);
+    return { processedStream: stream, audioContext: null, cleanup: () => {} };
+  }
 };
 
 const VideoChat = ({ socket, roomId, username }) => {
@@ -66,7 +166,7 @@ const VideoChat = ({ socket, roomId, username }) => {
   const [activeFilter, setActiveFilter] = useState("none");
   const [activeSticker, setActiveSticker] = useState(null);
   const [stickerPos, setStickerPos] = useState({ x: 70, y: 10 });
-  const [activePanel, setActivePanel] = useState(null); // 'filters' | 'stickers' | null
+  const [activePanel, setActivePanel] = useState(null);
   const [filterCategory, setFilterCategory] = useState(0);
   const [stickerPack, setStickerPack] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -75,26 +175,38 @@ const VideoChat = ({ socket, roomId, username }) => {
   const localVideoRef = useRef(null);
   const peerConnectionsRef = useRef(new Map());
   const localStreamRef = useRef(null);
+  const rawStreamRef = useRef(null);        // Keep original mic stream for cleanup
+  const noiseGateRef = useRef(null);         // Noise gate cleanup ref
 
   const enableVideoChat = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Get raw mic+cam stream with W3C standard constraints only (Safari-safe)
+      const rawStream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 24 } },
         audio: {
-          echoCancellation: { ideal: true },
-          noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true },
-          advanced: [
-            { googEchoCancellation: true },
-            { googExperimentalEchoCancellation: true },
-            { googNoiseSuppression: true },
-            { googExperimentalNoiseSuppression: true },
-            { googHighpassFilter: true }
-          ]
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,         // Mono — voice only, saves bandwidth
+          sampleRate: { ideal: 16000 }, // Low sample rate for voice clarity
         },
       });
-      localStreamRef.current = stream;
-      setLocalStream(stream);
+
+      rawStreamRef.current = rawStream;
+
+      // Process audio through noise gate
+      const noiseGate = createNoiseGate(rawStream);
+      noiseGateRef.current = noiseGate;
+
+      // Build the final stream: processed audio + original video
+      const processedStream = new MediaStream();
+      // Add noise-gated audio tracks
+      noiseGate.processedStream.getAudioTracks().forEach(t => processedStream.addTrack(t));
+      // Add original video tracks
+      rawStream.getVideoTracks().forEach(t => processedStream.addTrack(t));
+
+      localStreamRef.current = processedStream;
+      setLocalStream(processedStream);
       setIsEnabled(true);
       socket.emit("video_chat_enabled", { room: roomId, username });
     } catch (err) {
@@ -103,6 +215,16 @@ const VideoChat = ({ socket, roomId, username }) => {
   };
 
   const disableVideoChat = useCallback(() => {
+    // Stop raw mic/camera tracks
+    if (rawStreamRef.current) {
+      rawStreamRef.current.getTracks().forEach((t) => t.stop());
+      rawStreamRef.current = null;
+    }
+    // Cleanup noise gate audio context
+    if (noiseGateRef.current) {
+      noiseGateRef.current.cleanup();
+      noiseGateRef.current = null;
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
@@ -116,17 +238,24 @@ const VideoChat = ({ socket, roomId, username }) => {
   }, [socket, roomId]);
 
   const toggleMute = () => {
+    // Mute both processed and raw audio tracks
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
-      setIsMuted(prev => !prev);
     }
+    if (rawStreamRef.current) {
+      rawStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
+    }
+    setIsMuted(prev => !prev);
   };
 
   const toggleCamera = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !t.enabled; });
-      setIsCamOff(prev => !prev);
     }
+    if (rawStreamRef.current) {
+      rawStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !t.enabled; });
+    }
+    setIsCamOff(prev => !prev);
   };
 
   useEffect(() => {
@@ -250,7 +379,7 @@ const VideoChat = ({ socket, roomId, username }) => {
             Video Chat
           </p>
           <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.75rem", margin: "4px 0 0" }}>
-            Camera & microphone
+            Camera & microphone · Noise suppressed
           </p>
         </div>
         <motion.button
@@ -285,7 +414,6 @@ const VideoChat = ({ socket, roomId, username }) => {
         ref={(el) => {
           if (el && mainStream) {
             el.srcObject = mainStream;
-            // Only attach local ref if we are showing local as main
             if (isMainLocal && localVideoRef) localVideoRef.current = el;
           }
         }}

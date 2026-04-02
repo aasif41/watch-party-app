@@ -1,25 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4F46E5" />
-      <stop offset="100%" stop-color="#9333EA" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ec4899"/>
     </linearGradient>
-    <linearGradient id="glassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.4)" />
-      <stop offset="100%" stop-color="rgba(255, 255, 255, 0.05)" />
+    <linearGradient id="pop" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f97316"/>
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="6" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="outerGlow">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feFlood flood-color="#a855f7" flood-opacity="0.6" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
 
-  <!-- Background Dark Rounded Square -->
-  <rect x="5" y="5" width="90" height="90" rx="25" fill="#0C0C0C" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
-  
-  <!-- Glowing Ring -->
-  <circle cx="50" cy="50" r="32" fill="none" stroke="url(#primaryGrad)" stroke-width="8" filter="url(#glow)" />
-  
-  <!-- Glass Center Play Button -->
-  <path d="M42 34 L70 50 L42 66 Z" fill="url(#glassGrad)" stroke="rgba(255,255,255,0.8)" stroke-width="2" stroke-linejoin="round" />
+  <!-- Rounded background -->
+  <rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0a0a" stroke="url(#bg)" stroke-width="3"/>
+
+  <!-- Popcorn bucket -->
+  <g filter="url(#glow)">
+    <!-- Bucket body -->
+    <path d="M30 48 L34 82 C34 84 36 86 38 86 L62 86 C64 86 66 84 66 82 L70 48 Z" fill="url(#pop)" opacity="0.95"/>
+    <!-- Bucket stripes -->
+    <line x1="38" y1="48" x2="40" y2="86" stroke="#fff" stroke-width="1.5" opacity="0.3"/>
+    <line x1="50" y1="48" x2="50" y2="86" stroke="#fff" stroke-width="1.5" opacity="0.3"/>
+    <line x1="62" y1="48" x2="60" y2="86" stroke="#fff" stroke-width="1.5" opacity="0.3"/>
+    <!-- Bucket rim -->
+    <rect x="28" y="45" width="44" height="6" rx="3" fill="#f59e0b"/>
+  </g>
+
+  <!-- Popcorn kernels popping out -->
+  <g filter="url(#outerGlow)">
+    <circle cx="38" cy="38" r="7" fill="#fff9e6" stroke="#fde68a" stroke-width="1"/>
+    <circle cx="50" cy="32" r="8" fill="#fffbeb" stroke="#fde68a" stroke-width="1"/>
+    <circle cx="62" cy="36" r="7" fill="#fff9e6" stroke="#fde68a" stroke-width="1"/>
+    <circle cx="44" cy="28" r="5.5" fill="#fef3c7" stroke="#fde68a" stroke-width="0.8"/>
+    <circle cx="56" cy="26" r="5" fill="#fef3c7" stroke="#fde68a" stroke-width="0.8"/>
+    <circle cx="50" cy="22" r="4" fill="#fffbeb" stroke="#fde68a" stroke-width="0.8"/>
+  </g>
+
+  <!-- Play button overlay on bucket -->
+  <g opacity="0.9">
+    <circle cx="50" cy="67" r="11" fill="rgba(0,0,0,0.4)"/>
+    <path d="M46 60 L58 67 L46 74 Z" fill="#fff"/>
+  </g>
 </svg>

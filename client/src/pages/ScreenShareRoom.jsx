@@ -9,7 +9,34 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
   ],
+};
+
+// Detect iOS specifically (orientation lock and getDisplayMedia don't work on iOS)
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+/* Apply aggressive bitrate + framerate settings to RTCRtpSender for smooth streaming */
+const optimizeSenderParams = async (pc) => {
+  const senders = pc.getSenders();
+  for (const sender of senders) {
+    if (sender.track?.kind === "video") {
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        params.encodings[0].maxBitrate = 2_500_000;        // 2.5 Mbps — enough for 720p smooth
+        params.encodings[0].maxFramerate = 30;              // Smooth 30fps
+        params.encodings[0].scaleResolutionDownBy = 1;      // No downscaling
+        params.degradationPreference = "maintain-framerate"; // Favor smooth motion over resolution
+        await sender.setParameters(params);
+      } catch (e) {
+        console.warn("Could not set sender params:", e);
+      }
+    }
+  }
 };
 
 const ScreenShareRoom = () => {
@@ -19,6 +46,7 @@ const ScreenShareRoom = () => {
 
   const [username] = useState(localStorage.getItem("wp_username") || "Watcher");
   const [isMobile, setIsMobile] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
   const [isPresenter, setIsPresenter] = useState(false);
@@ -38,36 +66,12 @@ const ScreenShareRoom = () => {
       const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
       const isSmallScreen = window.innerWidth < 1024;
-      // If it's a touch device with a smallish screen, or explicit mobile UA, treat as mobile.
       setIsMobile(isMobileUserAgent || (isTouch && isSmallScreen));
+      setIsIOSDevice(isIOS());
     };
     check();
     window.addEventListener("resize", check);
-
-    // Request landscape lock on mobile if API is available
-    const lockOrientation = async () => {
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen().catch(() => {});
-        }
-        if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock("landscape").catch(() => {});
-        }
-      } catch (e) {
-        console.warn("Fullscreen/Orientation lock failed", e);
-      }
-    };
-    if (window.innerWidth < 768) lockOrientation();
-
-    return () => {
-      window.removeEventListener("resize", check);
-      // Unlock orientation when leaving
-      try {
-        if (screen.orientation && screen.orientation.unlock) {
-          screen.orientation.unlock();
-        }
-      } catch (e) {}
-    };
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   // Unread badge logic
@@ -126,6 +130,8 @@ const ScreenShareRoom = () => {
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      // Optimize video bitrate for smooth streaming
+      await optimizeSenderParams(pc);
       socket.emit("screen_share_offer", { to: viewerId, offer: pc.localDescription, room: roomId });
     };
 
@@ -203,44 +209,32 @@ const ScreenShareRoom = () => {
 
   const startSharing = async () => {
     if (isMobile) {
-      setShareError("This feature is only available on PC.");
+      setShareError("Screen sharing is only available on desktop.");
       setTimeout(() => setShareError(""), 3000);
       return;
     }
     try {
       setShareError("");
-      // Optimize constraints for lag-free/buffer-free performance (720p 30fps is optimal for zero-lag WebRTC)
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: "always",
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 24, max: 30 }
-          },
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            sampleRate: 48000,
-            channelCount: 2
-          },
-        });
-      } catch (e) {
-        // Fallback for mobile browsers (like iOS Safari) that don't support getDisplayMedia
-        // Fallback to back camera so mobile users can still "share" what they are looking at
-        console.warn("getDisplayMedia failed, falling back to camera:", e);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
-          audio: { echoCancellation: true, noiseSuppression: true }
-        });
-      }
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          cursor: "always",
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 30 }
+        },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 48000,
+          channelCount: 2
+        },
+      });
 
-      // Optimize RTCRtpSender to prefer low latency and zero buffering
+      // Set content hint for motion-optimized encoding (smooth scrolling/video)
       stream.getVideoTracks().forEach(track => {
         if (track.contentHint !== undefined) {
-          track.contentHint = "detail"; // Biases the encoder for screen sharing to maintain detail without lag
+          track.contentHint = "motion";
         }
       });
 
@@ -325,7 +319,7 @@ const ScreenShareRoom = () => {
             {isPresenter && localStreamRef.current && (
               <video
                 ref={(el) => { if (el && localStreamRef.current) el.srcObject = localStreamRef.current; }}
-                autoPlay muted
+                autoPlay muted playsInline
                 className="main-video"
               />
             )}
@@ -340,7 +334,11 @@ const ScreenShareRoom = () => {
                   <line x1="12" y1="17" x2="12" y2="21" />
                 </svg>
                 <p className="empty-title">No active screen share</p>
-                <p className="empty-sub">Click "Share Screen" to start presenting</p>
+                <p className="empty-sub">
+                  {isMobile
+                    ? "Screen sharing is available on desktop only. You can view shared screens here."
+                    : "Click \"Share Screen\" to start presenting"}
+                </p>
               </div>
             )}
             {/* Live indicator */}
@@ -680,6 +678,20 @@ const ScreenShareRoom = () => {
           .btn-icon { width: 32px; height: 32px; }
           .main-content { padding: 8px; gap: 8px; }
           .chat-panel { height: 300px !important; }
+        }
+
+        /* ====== FORCED LANDSCAPE ON MOBILE (CSS-based, works on iOS & Android) ====== */
+        @media (max-width: 768px) and (orientation: portrait) {
+          .screen-room-root {
+            transform: rotate(90deg);
+            transform-origin: top left;
+            width: 100vh;
+            height: 100vw;
+            position: absolute;
+            top: 0;
+            left: 100vw;
+            overflow: hidden;
+          }
         }
 
         /* Landscape mobile optimization */
