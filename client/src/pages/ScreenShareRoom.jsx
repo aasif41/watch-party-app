@@ -27,10 +27,10 @@ const optimizeSenderParams = async (pc) => {
         if (!params.encodings || params.encodings.length === 0) {
           params.encodings = [{}];
         }
-        params.encodings[0].maxBitrate = 4_000_000;        // 4 Mbps — HD lag-free streaming
+        params.encodings[0].maxBitrate = 8_000_000;        // 8 Mbps — true HD sharpness
         params.encodings[0].maxFramerate = 30;              // Smooth 30fps
         params.encodings[0].scaleResolutionDownBy = 1;      // No downscaling
-        params.degradationPreference = "maintain-framerate"; // Favor smooth motion over resolution
+        params.degradationPreference = "maintain-resolution"; // Keep pixels sharp, text readable
         await sender.setParameters(params);
       } catch (e) {
         console.warn("Could not set sender params:", e);
@@ -241,8 +241,8 @@ const ScreenShareRoom = () => {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: "always",
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
           frameRate: { ideal: 30, max: 30 }
         },
         audio: {
@@ -254,10 +254,10 @@ const ScreenShareRoom = () => {
         },
       });
 
-      // Set content hint for motion-optimized encoding (smooth scrolling/video)
+      // Set content hint for detail-optimized encoding (crisp text & faces)
       stream.getVideoTracks().forEach(track => {
         if (track.contentHint !== undefined) {
-          track.contentHint = "motion";
+          track.contentHint = "detail";
         }
       });
 
