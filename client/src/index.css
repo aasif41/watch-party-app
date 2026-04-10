@@ -1,14 +1,46 @@
+@import "tailwindcss";
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Poppins", sans-serif;
+  font-family: "Inter", "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body {
   transition: background-color 0.3s;
-  background-color: #ffffff;
-  color: #333;
+  background-color: #0a0a14;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Blue-tinged selection */
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+  color: #fff;
+}
+
+/* Scrollbar styling — thin blue */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.3) transparent;
 }
 
 /* Room Join Card Styling */
@@ -29,17 +61,16 @@ body {
 
 /* Chat Window Styling */
 .chat-window {
-  background: white;
+  background: #0f0f18;
   border-radius: 8px;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .stream-container {
-    flex-direction: column; /* Stack video and chat on mobile */
+    flex-direction: column;
   }
   
-  /* Ensuring video takes full width on small screens */
   div[style*="min-width: 350px"] {
     min-width: 100% !important;
   }

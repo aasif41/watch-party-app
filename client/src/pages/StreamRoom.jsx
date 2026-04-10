@@ -6,6 +6,25 @@ import ChatBox from "../components/ChatBox";
 import VideoChat from "../components/VideoChat";
 import { motion, AnimatePresence } from "framer-motion";
 
+const WPLogo = ({ size = 22 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size} style={{ flexShrink: 0 }}>
+    <defs>
+      <linearGradient id="sLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#3b82f6" />
+        <stop offset="50%" stopColor="#2563eb" />
+        <stop offset="100%" stopColor="#60a5fa" />
+      </linearGradient>
+      <linearGradient id="sLogoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0c1929" />
+        <stop offset="100%" stopColor="#0f2035" />
+      </linearGradient>
+    </defs>
+    <rect width="100" height="100" rx="22" fill="url(#sLogoBg)" />
+    <path d="M22 28 L32 72 L44 44 L50 58 L56 44 L68 72 L78 28" fill="none" stroke="url(#sLogoGrad)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="50" cy="80" r="4" fill="#60a5fa" />
+  </svg>
+);
+
 const StreamRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -38,18 +57,18 @@ const StreamRoom = () => {
     const lockOrientation = async () => {
       try {
         if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen().catch(() => {});
+          await document.documentElement.requestFullscreen().catch(() => { });
         }
         if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock("landscape").catch(() => {});
+          await screen.orientation.lock("landscape").catch(() => { });
         }
-      } catch (e) {}
+      } catch (e) { }
     };
     if (window.innerWidth < 768) lockOrientation();
 
     return () => {
       window.removeEventListener("resize", check);
-      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { }
     };
   }, []);
 
@@ -189,30 +208,30 @@ const StreamRoom = () => {
         {/* Sidebar Panel */}
         <div className="chat-panel" style={{ width: isMobile ? "100%" : "380px", display: showSidebar ? "flex" : "none" }}>
           <div className="sidebar-tabs">
-                <button
-                  className={`sidebar-tab ${activeTab === "chat" ? "active" : ""}`}
-                  onClick={() => setActiveTab("chat")}
-                >
-                  💬 Chat
-                  {unreadCount > 0 && <span className="tab-badge">{unreadCount}</span>}
-                </button>
-                <div className="tab-divider" />
-                <button
-                  className={`sidebar-tab ${activeTab === "video" ? "active" : ""}`}
-                  onClick={() => setActiveTab("video")}
-                >
-                  📹 Video Call
-                </button>
-              </div>
-              
-              <div className="sidebar-content">
-                <div style={{ display: activeTab === "chat" ? "flex" : "none", height: "100%", width: "100%", flexDirection: "column" }}>
-                  <ChatBox socket={socket} room={roomId} username={username} />
-                </div>
-                <div style={{ display: activeTab === "video" ? "block" : "none", height: "100%", width: "100%" }}>
-                  <VideoChat socket={socket} roomId={roomId} username={username} />
-                </div>
-              </div>
+            <button
+              className={`sidebar-tab ${activeTab === "chat" ? "active" : ""}`}
+              onClick={() => setActiveTab("chat")}
+            >
+              💬 Chat
+              {unreadCount > 0 && <span className="tab-badge">{unreadCount}</span>}
+            </button>
+            <div className="tab-divider" />
+            <button
+              className={`sidebar-tab ${activeTab === "video" ? "active" : ""}`}
+              onClick={() => setActiveTab("video")}
+            >
+              📹 Video Call
+            </button>
+          </div>
+
+          <div className="sidebar-content">
+            <div style={{ display: activeTab === "chat" ? "flex" : "none", height: "100%", width: "100%", flexDirection: "column" }}>
+              <ChatBox socket={socket} room={roomId} username={username} />
+            </div>
+            <div style={{ display: activeTab === "video" ? "block" : "none", height: "100%", width: "100%" }}>
+              <VideoChat socket={socket} roomId={roomId} username={username} />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -301,7 +320,7 @@ const StreamRoom = () => {
           transition: all 0.15s;
         }
         .btn-icon:hover { background: rgba(255,255,255,0.08); color: #f1f5f9; }
-        .btn-icon.active { background: rgba(59,130,246,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+        .btn-icon.active { background: rgba(37,99,235,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
         .btn-leave {
           background: transparent;
           border: 1px solid rgba(239,68,68,0.25);
@@ -367,7 +386,7 @@ const StreamRoom = () => {
           transition: all 0.2s;
         }
         .sidebar-tab:hover { background: rgba(255,255,255,0.04); color: #f1f5f9; }
-        .sidebar-tab.active { background: rgba(255,255,255,0.08); color: #fff; }
+        .sidebar-tab.active { background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.15); }
         .tab-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.08); }
         .tab-badge {
           background: #ef4444; color: #fff; font-size: 0.65rem;

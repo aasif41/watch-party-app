@@ -5,6 +5,25 @@ import ChatBox from "../components/ChatBox";
 import VideoChat from "../components/VideoChat";
 import { motion, AnimatePresence } from "framer-motion";
 
+const WPLogo = ({ size = 22 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size} style={{ flexShrink: 0 }}>
+    <defs>
+      <linearGradient id="scLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#3b82f6"/>
+        <stop offset="50%" stopColor="#2563eb"/>
+        <stop offset="100%" stopColor="#60a5fa"/>
+      </linearGradient>
+      <linearGradient id="scLogoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0c1929"/>
+        <stop offset="100%" stopColor="#0f2035"/>
+      </linearGradient>
+    </defs>
+    <rect width="100" height="100" rx="22" fill="url(#scLogoBg)"/>
+    <path d="M22 28 L32 72 L44 44 L50 58 L56 44 L68 72 L78 28" fill="none" stroke="url(#scLogoGrad)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="50" cy="80" r="4" fill="#60a5fa"/>
+  </svg>
+);
+
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -480,8 +499,8 @@ const ScreenShareRoom = () => {
           gap: 8px;
         }
         .btn-share {
-          background: #fff;
-          color: #000;
+          background: linear-gradient(135deg, #2563eb, #3b82f6);
+          color: #fff;
           border: none;
           padding: 6px 16px;
           border-radius: 8px;
@@ -517,7 +536,7 @@ const ScreenShareRoom = () => {
           transition: all 0.15s;
         }
         .btn-icon:hover { background: rgba(255,255,255,0.08); color: #f1f5f9; }
-        .btn-icon.active { background: rgba(59,130,246,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+        .btn-icon.active { background: rgba(37,99,235,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
         .btn-leave {
           background: transparent;
           border: 1px solid rgba(239,68,68,0.25);
@@ -657,7 +676,7 @@ const ScreenShareRoom = () => {
           transition: all 0.2s;
         }
         .sidebar-tab:hover { background: rgba(255,255,255,0.04); color: #f1f5f9; }
-        .sidebar-tab.active { background: rgba(255,255,255,0.08); color: #fff; }
+        .sidebar-tab.active { background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.15); }
         .tab-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.08); }
         .tab-badge {
           background: #ef4444; color: #fff; font-size: 0.65rem;

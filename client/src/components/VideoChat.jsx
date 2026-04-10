@@ -379,9 +379,6 @@ const VideoChat = ({ socket, roomId, username }) => {
           <p style={{ color: "#94a3b8", fontSize: "0.85rem", margin: 0, fontWeight: "500" }}>
             Video Chat
           </p>
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.75rem", margin: "4px 0 0" }}>
-            Camera & microphone · Noise suppressed
-          </p>
         </div>
         <motion.button
           whileHover={{ scale: 1.02 }}

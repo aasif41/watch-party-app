@@ -127,7 +127,7 @@ const ChatBox = ({ socket, room, username }) => {
         }
         .chatbox-dot {
           width: 6px; height: 6px; border-radius: 50%;
-          background: #22c55e;
+          background: #3b82f6;
         }
         .chatbox-title {
           font-size: 0.85rem;
@@ -189,7 +189,7 @@ const ChatBox = ({ socket, room, username }) => {
           word-break: break-word;
         }
         .bubble-mine {
-          background: #3b82f6;
+          background: linear-gradient(135deg, #2563eb, #3b82f6);
           border-bottom-right-radius: 4px;
         }
         .bubble-other {
@@ -241,7 +241,7 @@ const ChatBox = ({ socket, room, username }) => {
         .chatbox-send {
           width: 34px; height: 34px;
           border-radius: 8px;
-          background: #3b82f6;
+          background: linear-gradient(135deg, #2563eb, #3b82f6);
           color: #fff;
           border: none;
           cursor: pointer;

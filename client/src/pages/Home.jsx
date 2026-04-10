@@ -1,225 +1,36 @@
-import React, { useState, useRef, useMemo, useEffect, Suspense } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Float } from "@react-three/drei";
 import { motion, AnimatePresence } from "framer-motion";
-import * as THREE from "three";
+import { TubesCursorBackground } from "@/components/ui/tubes-curor";
 
-// --- Inject CSS keyframes for glitch background ---
-const glitchCSS = `
-@keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-@keyframes gridPulse {
-  0%, 100% { opacity: 0.04; }
-  50% { opacity: 0.08; }
-}
-@keyframes glitchFlicker {
-  0%, 92%, 94%, 96%, 100% { opacity: 0; }
-  93% { opacity: 0.15; transform: translate(-2px, 1px); }
-  95% { opacity: 0.1; transform: translate(2px, -1px); }
-}
-@keyframes noiseMove {
-  0% { background-position: 0 0; }
-  100% { background-position: 100px 100px; }
-}
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-`;
-
-// Inject CSS once
-if (typeof document !== "undefined" && !document.getElementById("glitch-css")) {
-  const style = document.createElement("style");
-  style.id = "glitch-css";
-  style.textContent = glitchCSS;
-  document.head.appendChild(style);
-}
-
-// --- Subtle Floating Particles ---
-const Particles = ({ count = 80 }) => {
-  const meshRef = useRef();
-  const positions = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 50;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 30;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 15;
-    }
-    return pos;
-  }, [count]);
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.008;
-      meshRef.current.rotation.x = Math.sin(state.clock.getElapsedTime() * 0.003) * 0.1;
-    }
-  });
-
-  return (
-    <points ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial size={0.04} color="#818cf8" transparent opacity={0.35} sizeAttenuation />
-    </points>
-  );
-};
-
-// --- Floating Background Orbs ---
-const BackgroundOrbs = () => {
-  const groupRef = useRef();
-  const orbCount = 6;
-
-  const orbData = useMemo(() => {
-    return Array.from({ length: orbCount }, (_, i) => ({
-      x: (Math.random() - 0.5) * 24,
-      y: (Math.random() - 0.5) * 12,
-      z: -3 - Math.random() * 8,
-      scale: 0.3 + Math.random() * 0.6,
-      speed: 0.1 + Math.random() * 0.15,
-      phase: Math.random() * Math.PI * 2,
-    }));
-  }, []);
-
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
-    if (!groupRef.current) return;
-
-    groupRef.current.children.forEach((mesh, i) => {
-      const d = orbData[i];
-      mesh.position.x = d.x + Math.sin(time * d.speed + d.phase) * 2;
-      mesh.position.y = d.y + Math.cos(time * d.speed * 0.7 + d.phase) * 1.5;
-      mesh.position.z = d.z + Math.sin(time * 0.1 + d.phase) * 0.5;
-
-      const pulse = 0.06 + Math.sin(time * 0.4 + d.phase) * 0.03;
-      if (mesh.material) {
-        mesh.material.opacity = pulse;
-        const hue = (0.7 + Math.sin(time * 0.15 + i * 0.5) * 0.08) % 1;
-        mesh.material.emissive.setHSL(hue, 0.6, 0.3);
-      }
-    });
-  });
-
-  return (
-    <group ref={groupRef}>
-      {orbData.map((d, i) => (
-        <mesh key={i} position={[d.x, d.y, d.z]} scale={d.scale}>
-          <sphereGeometry args={[1.5, 16, 16]} />
-          <meshStandardMaterial
-            color="#6366f1"
-            emissive="#7c3aed"
-            emissiveIntensity={1.5}
-            transparent={true}
-            opacity={0.06}
-            side={THREE.FrontSide}
-            toneMapped={false}
-          />
-        </mesh>
-      ))}
-    </group>
-  );
-};
-
-// --- Moving Neon Glow Light ---
-const GlowLight = () => {
-  const lightRef = useRef();
-
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
-    if (lightRef.current) {
-      const count = 30;
-      const spacing = 0.75;
-      const spotIndex = (Math.sin(time * 0.2) * 0.5 + 0.5) * count;
-      const x = (spotIndex - count / 2) * spacing;
-      const y = Math.sin(time * 0.5 + spotIndex * 0.25) * 1.3;
-      lightRef.current.position.set(x, y, 2);
-
-      const colorWave = time * 0.35 + spotIndex * 0.1;
-      const hue = (0.73 + Math.sin(colorWave) * 0.08) % 1;
-      lightRef.current.color.setHSL(hue, 0.8, 0.6);
-    }
-  });
-
-  return (
-    <pointLight
-      ref={lightRef}
-      intensity={8}
-      distance={12}
-      color="#7c3aed"
-    />
-  );
-};
-
-// --- AIAF-Style Wave Discs ---
-const WaveDiscs = () => {
-  const groupRef = useRef();
-  const count = 30;
-  const spacing = 0.75;
-
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
-    if (!groupRef.current) return;
-
-    const spotCenter = (Math.sin(time * 0.2) * 0.5 + 0.5) * count;
-
-    groupRef.current.children.forEach((mesh, i) => {
-      const offset = i * 0.22;
-      mesh.position.y = Math.sin(time * 0.5 + offset) * 1.3;
-
-      const colorWave = time * 0.35 + i * 0.1;
-      const hue = (0.73 + Math.sin(colorWave) * 0.08 + Math.cos(colorWave * 0.6) * 0.04) % 1;
-      const distFromSpot = Math.abs(i - spotCenter);
-      const glow = Math.max(0, 1 - distFromSpot * 0.12);
-      const lightness = 0.3 + glow * 0.4;
-      const saturation = 0.55 - glow * 0.3;
-
-      if (mesh.material) {
-        mesh.material.color.setHSL(hue, saturation, lightness);
-        mesh.material.emissive.setHSL(hue, saturation * 0.65, lightness * 0.35);
-        mesh.material.emissiveIntensity = 0.4 + glow * 2.5;
-      }
-    });
-  });
-
-  const getDiscPosition = (i) => {
-    const x = (i - count / 2) * spacing;
-    const t = (i - count / 2) / (count / 2);
-    const z = t * t * 4;
-    return [x, 0, z];
-  };
-
-  return (
-    <group ref={groupRef} position={[0, -0.3, 0]}>
-      {[...Array(count)].map((_, i) => {
-        const pos = getDiscPosition(i);
-        return (
-          <mesh key={i} position={pos} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[2.2, 2.2, 0.04, 64]} />
-            <meshStandardMaterial
-              color="#7c3aed"
-              emissive="#4f46e5"
-              emissiveIntensity={0.5}
-              transparent={true}
-              opacity={0.88}
-              side={THREE.DoubleSide}
-              roughness={0.25}
-              metalness={0.8}
-              toneMapped={false}
-            />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-};
+// Inline SVG Logo Component (matches favicon)
+const WPLogo = ({ size = 28 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size} style={{ flexShrink: 0 }}>
+    <defs>
+      <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#60a5fa" />
+        <stop offset="50%" stopColor="#3b82f6" />
+        <stop offset="100%" stopColor="#93c5fd" />
+      </linearGradient>
+      <linearGradient id="logoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#1e3a5f" />
+        <stop offset="100%" stopColor="#0c1929" />
+      </linearGradient>
+      <filter id="logoGlow">
+        <feGaussianBlur stdDeviation="2.5" result="blur" />
+        <feFlood floodColor="#60a5fa" floodOpacity="0.7" result="color" />
+        <feComposite in="color" in2="blur" operator="in" result="shadow" />
+        <feMerge><feMergeNode in="shadow" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
+    </defs>
+    <rect width="100" height="100" rx="22" fill="url(#logoBg)" />
+    <circle cx="50" cy="42" r="36" fill="#3b82f6" opacity="0.1" />
+    <g filter="url(#logoGlow)">
+      <path d="M22 28 L32 72 L44 44 L50 58 L56 44 L68 72 L78 28" fill="none" stroke="url(#logoGrad)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+    <circle cx="50" cy="80" r="4" fill="#93c5fd" />
+  </svg>
+);
 
 const isValidYouTubeUrl = (url) => {
   const patterns = [
@@ -307,11 +118,11 @@ const content = {
 };
 
 const glassCard = {
-  background: "rgba(255, 255, 255, 0.02)",
+  background: "rgba(255, 255, 255, 0.03)",
   backdropFilter: "blur(25px)",
   WebkitBackdropFilter: "blur(25px)",
-  border: "1px solid rgba(255, 255, 255, 0.1)",
-  boxShadow: "0 25px 50px rgba(0,0,0,0.5)"
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  boxShadow: "0 25px 50px rgba(0,0,0,0.4)"
 };
 
 const Home = () => {
@@ -323,12 +134,12 @@ const Home = () => {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [showGlow, setShowGlow] = useState(false);
   const [isHinglish, setIsHinglish] = useState(false);
-  // NEW: Mode state — "youtube" or "screenshare"
   const [roomMode, setRoomMode] = useState("youtube");
-  // NEW: Help section mode tab
   const [helpMode, setHelpMode] = useState("youtube");
   const helpRef = useRef(null);
   const navigate = useNavigate();
+
+
 
   const lang = isHinglish ? "hi" : "en";
   const t = content[lang][helpMode];
@@ -340,6 +151,8 @@ const Home = () => {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+
 
   const handleVideoUrlChange = (e) => {
     const val = e.target.value;
@@ -366,7 +179,6 @@ const Home = () => {
       localStorage.setItem("wp_roomMode", "youtube");
       navigate(`/stream/${room}`);
     } else {
-      // Screen share mode — no video URL needed
       if (!username || !room) {
         alert("Username and Room ID cannot be empty!");
         return;
@@ -381,7 +193,6 @@ const Home = () => {
     helpRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Mode tabs config
   const modes = [
     { key: "youtube", label: "YouTube Party", icon: "🎬" },
     { key: "screenshare", label: "Screen Share", icon: "🖥️" },
@@ -391,7 +202,7 @@ const Home = () => {
     <div style={{
       height: "100vh",
       width: "100vw",
-      backgroundColor: "#0a0a1a",
+      backgroundColor: "#0a0a14",
       position: "fixed",
       top: 0,
       left: 0,
@@ -404,7 +215,7 @@ const Home = () => {
       }}
       onMouseLeave={() => setShowGlow(false)}
     >
-      {/* === MOUSE HOVER GLOW === */}
+      {/* === MOUSE HOVER GLOW — PURPLE === */}
       {showGlow && !isMobile && (
         <div style={{
           position: "absolute",
@@ -413,7 +224,7 @@ const Home = () => {
           width: 300,
           height: 300,
           borderRadius: "50%",
-          background: `radial-gradient(circle, rgba(${120 + Math.sin(mousePos.x * 0.005) * 60}, ${80 + Math.cos(mousePos.y * 0.005) * 80}, ${200 + Math.sin((mousePos.x + mousePos.y) * 0.003) * 55}, 0.12) 0%, transparent 70%)`,
+          background: `radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, transparent 70%)`,
           pointerEvents: "none",
           zIndex: 1,
           transition: "left 0.08s ease-out, top 0.08s ease-out",
@@ -422,68 +233,186 @@ const Home = () => {
         }} />
       )}
 
-      {/* === GLITCH BACKGROUND LAYERS === */}
-      <div style={{
-        position: "absolute", inset: 0, zIndex: 1,
-        background: "radial-gradient(ellipse at 30% 50%, rgba(124,58,237,0.08) 0%, transparent 50%), radial-gradient(ellipse at 70% 50%, rgba(59,130,246,0.06) 0%, transparent 50%)",
-        backgroundSize: "200% 200%",
-        animation: "gradientShift 12s ease-in-out infinite",
-        pointerEvents: "none"
-      }} />
-      <div style={{
-        position: "absolute", inset: 0, zIndex: 1,
-        background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(124,58,237,0.03) 2px, rgba(124,58,237,0.03) 4px)",
-        pointerEvents: "none"
-      }} />
-      <div style={{
-        position: "absolute", left: 0, width: "100%", height: "6px", zIndex: 1,
-        background: "linear-gradient(180deg, transparent, rgba(124,58,237,0.12), transparent)",
-        animation: "scanline 6s linear infinite",
-        pointerEvents: "none"
-      }} />
-      <div style={{
-        position: "absolute", inset: 0, zIndex: 1,
-        backgroundImage: `linear-gradient(rgba(124,58,237,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.04) 1px, transparent 1px)`,
-        backgroundSize: isMobile ? "30px 30px" : "50px 50px",
-        animation: "gridPulse 4s ease-in-out infinite",
-        pointerEvents: "none"
-      }} />
-      <div style={{
-        position: "absolute", inset: 0, zIndex: 1,
-        background: "linear-gradient(90deg, transparent 0%, rgba(124,58,237,0.1) 15%, transparent 30%)",
-        animation: "glitchFlicker 3s ease-in-out infinite",
-        pointerEvents: "none"
-      }} />
+      {/* === TUBES CURSOR 3D BACKGROUND === */}
+      <TubesCursorBackground />
 
-      {/* 3D CANVAS */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-        zIndex: 2, pointerEvents: "none"
-      }}>
-        <Canvas
-          camera={{ position: [0, 0.5, isMobile ? 18 : 14], fov: isMobile ? 60 : 55 }}
-          dpr={[1, isMobile ? 1.5 : 2]}
-          gl={{ antialias: true, alpha: false }}
-          style={{ width: "100%", height: "100%" }}
-          onCreated={({ gl }) => {
-            gl.toneMapping = THREE.ACESFilmicToneMapping;
-            gl.toneMappingExposure = 1.1;
+      {/* === FLOATING 3D DECORATIVE ELEMENTS === */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", overflow: "hidden" }}>
+        {/* Large glowing orb — top right */}
+        <motion.div
+          animate={{
+            y: [0, -30, 0, 20, 0],
+            x: [0, 15, 0, -10, 0],
+            scale: [1, 1.1, 1, 0.95, 1]
+          }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute", top: "8%", right: "12%",
+            width: isMobile ? "120px" : "200px", height: isMobile ? "120px" : "200px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(37, 99, 235, 0.04) 50%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
+
+        {/* Smaller orb — bottom left */}
+        <motion.div
+          animate={{
+            y: [0, 25, 0, -15, 0],
+            x: [0, -20, 0, 10, 0],
+            scale: [1, 0.9, 1, 1.15, 1]
+          }}
+          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute", bottom: "15%", left: "8%",
+            width: isMobile ? "100px" : "160px", height: isMobile ? "100px" : "160px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(96, 165, 250, 0.1) 0%, rgba(59, 130, 246, 0.03) 50%, transparent 70%)",
+            filter: "blur(35px)",
+          }}
+        />
+
+        {/* Warm accent orb — mid left */}
+        <motion.div
+          animate={{
+            y: [0, -40, 0, 30, 0],
+            x: [0, 10, 0, -8, 0],
+            opacity: [0.6, 1, 0.6, 0.8, 0.6]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute", top: "40%", left: "5%",
+            width: isMobile ? "80px" : "140px", height: isMobile ? "80px" : "140px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(245, 158, 11, 0.06) 0%, transparent 70%)",
+            filter: "blur(30px)",
+          }}
+        />
+
+        {/* Rotating ring — top left */}
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+          style={{
+            position: "absolute", top: isMobile ? "15%" : "20%", left: isMobile ? "5%" : "15%",
+            width: isMobile ? "60px" : "100px", height: isMobile ? "60px" : "100px",
+            borderRadius: "50%",
+            border: "1px solid rgba(59, 130, 246, 0.08)",
+            boxShadow: "0 0 20px rgba(59, 130, 246, 0.03)",
+          }}
+        />
+
+        {/* Rotating ring — bottom right (opposite direction) */}
+        <motion.div
+          animate={{ rotate: -360 }}
+          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+          style={{
+            position: "absolute", bottom: isMobile ? "25%" : "30%", right: isMobile ? "8%" : "18%",
+            width: isMobile ? "50px" : "80px", height: isMobile ? "50px" : "80px",
+            borderRadius: "50%",
+            border: "1px solid rgba(96, 165, 250, 0.06)",
+            boxShadow: "0 0 15px rgba(96, 165, 250, 0.02)",
+          }}
+        />
+
+        {/* Diamond shape — mid right */}
+        <motion.div
+          animate={{
+            rotate: [45, 55, 45, 35, 45],
+            y: [0, -20, 0, 15, 0],
+            opacity: [0.5, 0.8, 0.5, 0.7, 0.5]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute", top: "55%", right: "10%",
+            width: isMobile ? "20px" : "30px", height: isMobile ? "20px" : "30px",
+            background: "linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.05))",
+            border: "1px solid rgba(59, 130, 246, 0.1)",
+            transform: "rotate(45deg)",
+          }}
+        />
+
+        {/* Floating dots / particles */}
+        {[
+          { top: "12%", left: "25%", size: 4, delay: 0, dur: 15 },
+          { top: "30%", right: "20%", size: 3, delay: 2, dur: 18 },
+          { top: "65%", left: "18%", size: 5, delay: 4, dur: 20 },
+          { top: "75%", right: "25%", size: 3, delay: 1, dur: 16 },
+          { top: "45%", left: "35%", size: 2, delay: 3, dur: 22 },
+          { top: "20%", right: "35%", size: 4, delay: 5, dur: 19 },
+          { top: "85%", left: "40%", size: 3, delay: 2, dur: 17 },
+          { top: "50%", right: "40%", size: 2, delay: 6, dur: 21 },
+        ].map((p, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            animate={{
+              y: [0, -15, 0, 10, 0],
+              opacity: [0.3, 0.7, 0.3, 0.5, 0.3],
+              scale: [1, 1.3, 1, 0.8, 1]
+            }}
+            transition={{
+              duration: p.dur,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: p.delay
+            }}
+            style={{
+              position: "absolute",
+              top: p.top,
+              left: p.left,
+              right: p.right,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              borderRadius: "50%",
+              background: "rgba(96, 165, 250, 0.4)",
+              boxShadow: `0 0 ${p.size * 3}px rgba(59, 130, 246, 0.3)`,
+            }}
+          />
+        ))}
+
+        {/* Subtle horizontal line accents */}
+        <motion.div
+          animate={{ opacity: [0.03, 0.08, 0.03], scaleX: [0.8, 1, 0.8] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute", top: "35%", left: "10%", right: "60%",
+            height: "1px",
+            background: "linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.15), transparent)",
+          }}
+        />
+        <motion.div
+          animate={{ opacity: [0.03, 0.06, 0.03], scaleX: [0.9, 1, 0.9] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+          style={{
+            position: "absolute", top: "70%", left: "55%", right: "10%",
+            height: "1px",
+            background: "linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.12), transparent)",
+          }}
+        />
+
+        {/* Cross/plus shape — lower left */}
+        <motion.div
+          animate={{
+            rotate: [0, 90, 180, 270, 360],
+            opacity: [0.4, 0.7, 0.4]
+          }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          style={{
+            position: "absolute", bottom: "35%", left: "12%",
+            width: isMobile ? "16px" : "24px", height: isMobile ? "16px" : "24px",
           }}
         >
-          <Suspense fallback={null}>
-            <ambientLight intensity={0.12} />
-            <directionalLight position={[6, 8, 8]} intensity={2.2} color="#ede9fe" />
-            <pointLight position={[-10, 0, 5]} intensity={1.8} color="#7c3aed" distance={35} />
-            <pointLight position={[0, -3, -8]} intensity={1.0} color="#3b82f6" distance={25} />
-            <spotLight position={[0, 5, 12]} angle={0.7} penumbra={0.8} intensity={2.5} color="#ffffff" distance={25} />
-            <Float speed={0.8} rotationIntensity={0.02} floatIntensity={0.04}>
-              <WaveDiscs />
-            </Float>
-            <GlowLight />
-            <BackgroundOrbs />
-            <Particles />
-          </Suspense>
-        </Canvas>
+          <div style={{
+            position: "absolute", top: "50%", left: 0, right: 0,
+            height: "1px", background: "rgba(59, 130, 246, 0.12)",
+            transform: "translateY(-50%)"
+          }} />
+          <div style={{
+            position: "absolute", left: "50%", top: 0, bottom: 0,
+            width: "1px", background: "rgba(59, 130, 246, 0.12)",
+            transform: "translateX(-50%)"
+          }} />
+        </motion.div>
       </div>
 
       {/* NAVBAR OVERLAY */}
@@ -495,21 +424,24 @@ const Home = () => {
           position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: isMobile ? "14px 20px" : "18px 40px",
-          background: "rgba(0, 0, 0, 0.35)",
+          background: "rgba(10, 10, 20, 0.45)",
           backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
           pointerEvents: "auto"
         }}
       >
-        <h2 style={{
-          margin: 0, fontSize: isMobile ? "1.1rem" : "1.4rem",
-          fontWeight: "900", color: "#fff", letterSpacing: "1px"
-        }}>
-          WATCH<span style={{ color: "#3b82f6" }}>PARTY</span>
-        </h2>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "12px" }}>
+          <WPLogo size={isMobile ? 28 : 34} />
+          <h2 style={{
+            margin: 0, fontSize: isMobile ? "1.1rem" : "1.4rem",
+            fontWeight: "900", color: "#fff", letterSpacing: "1px"
+          }}>
+            WATCH<span style={{ color: "#3b82f6" }}>PARTY</span>
+          </h2>
+        </div>
         <div style={{
           fontSize: isMobile ? "0.65rem" : "0.7rem",
-          color: "rgba(255,255,255,0.35)", letterSpacing: "2px", fontWeight: "500"
+          color: "rgba(96, 165, 250, 0.4)", letterSpacing: "2px", fontWeight: "500"
         }}>
           SYNC · WATCH · CHAT
         </div>
@@ -532,25 +464,25 @@ const Home = () => {
             transition={{ duration: 1 }}
             style={{
               ...glassCard,
-              borderRadius: isMobile ? "20px" : "32px",
-              padding: isMobile ? "28px 22px" : "50px",
-              width: "90%",
-              maxWidth: isMobile ? "340px" : "480px",
+              borderRadius: isMobile ? "18px" : "28px",
+              padding: isMobile ? "24px 18px" : "36px 40px",
+              width: isMobile ? "88%" : "85%",
+              maxWidth: isMobile ? "320px" : "400px",
               textAlign: "center"
             }}
           >
             {/* Title */}
             <h1 style={{
-              color: "#fff", fontSize: isMobile ? "1.8rem" : "2.8rem",
+              color: "#fff", fontSize: isMobile ? "1.5rem" : "2.2rem",
               fontWeight: "900", margin: 0
             }}>
               WATCH<span style={{ color: "#3b82f6" }}>PARTY</span>
             </h1>
             <p style={{
-              color: "rgba(255,255,255,0.4)",
+              color: "rgba(96, 165, 250, 0.5)",
               fontSize: isMobile ? "0.6rem" : "0.8rem",
               letterSpacing: isMobile ? "2px" : "3px",
-              marginBottom: isMobile ? "14px" : "22px"
+              marginBottom: isMobile ? "10px" : "16px"
             }}>
               WATCH TOGETHER, ANYWHERE
             </p>
@@ -558,10 +490,11 @@ const Home = () => {
             {/* === MODE TOGGLE TABS === */}
             <div style={{
               display: "flex", gap: "0",
-              background: "rgba(255,255,255,0.04)",
+              background: "rgba(255, 255, 255, 0.04)",
               borderRadius: "14px", padding: "4px",
-              marginBottom: isMobile ? "16px" : "24px",
-              position: "relative"
+              marginBottom: isMobile ? "12px" : "18px",
+              position: "relative",
+              border: "1px solid rgba(255, 255, 255, 0.06)"
             }}>
               {modes.map((m) => (
                 <motion.button
@@ -575,7 +508,8 @@ const Home = () => {
                     cursor: "pointer", borderRadius: "11px",
                     position: "relative", zIndex: 2,
                     transition: "color 0.2s", display: "flex",
-                    alignItems: "center", justifyContent: "center", gap: "6px"
+                    alignItems: "center", justifyContent: "center", gap: "6px",
+                    whiteSpace: "nowrap"
                   }}
                 >
                   {roomMode === m.key && (
@@ -584,10 +518,10 @@ const Home = () => {
                       style={{
                         position: "absolute", inset: 0,
                         background: roomMode === "youtube"
-                          ? "linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(124, 58, 237, 0.3))"
-                          : "linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(59, 130, 246, 0.3))",
+                          ? "linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(59, 130, 246, 0.25))"
+                          : "linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(37, 99, 235, 0.2))",
                         borderRadius: "11px",
-                        border: "1px solid rgba(255,255,255,0.1)",
+                        border: "1px solid rgba(59, 130, 246, 0.15)",
                         zIndex: -1
                       }}
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -599,14 +533,14 @@ const Home = () => {
               ))}
             </div>
 
-            {/* === FORM FIELDS (animated transitions) === */}
-            <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? "10px" : "15px" }}>
+            {/* === FORM FIELDS === */}
+            <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? "8px" : "10px" }}>
               <input
                 style={{
                   ...inputStyle,
-                  padding: isMobile ? "12px" : "16px",
-                  borderRadius: isMobile ? "10px" : "14px",
-                  fontSize: isMobile ? "14px" : "16px"
+                  padding: isMobile ? "10px 12px" : "13px 16px",
+                  borderRadius: isMobile ? "10px" : "12px",
+                  fontSize: isMobile ? "13px" : "14px"
                 }}
                 placeholder="Username"
                 value={username}
@@ -615,9 +549,9 @@ const Home = () => {
               <input
                 style={{
                   ...inputStyle,
-                  padding: isMobile ? "12px" : "16px",
-                  borderRadius: isMobile ? "10px" : "14px",
-                  fontSize: isMobile ? "14px" : "16px"
+                  padding: isMobile ? "10px 12px" : "13px 16px",
+                  borderRadius: isMobile ? "10px" : "12px",
+                  fontSize: isMobile ? "13px" : "14px"
                 }}
                 placeholder="Room ID"
                 value={room}
@@ -638,9 +572,9 @@ const Home = () => {
                     <input
                       style={{
                         ...inputStyle,
-                        padding: isMobile ? "12px" : "16px",
-                        borderRadius: isMobile ? "10px" : "14px",
-                        fontSize: isMobile ? "14px" : "16px",
+                        padding: isMobile ? "10px 12px" : "13px 16px",
+                        borderRadius: isMobile ? "10px" : "12px",
+                        fontSize: isMobile ? "13px" : "14px",
                         width: "100%",
                         border: linkError ? "1px solid rgba(239, 68, 68, 0.6)" : "1px solid rgba(255, 255, 255, 0.1)"
                       }}
@@ -687,13 +621,13 @@ const Home = () => {
               </AnimatePresence>
 
               <motion.button
-                whileHover={{ scale: 1.05, background: "#fff", color: "#000" }}
+                whileHover={{ scale: 1.03, boxShadow: "0 0 30px rgba(37, 99, 235, 0.3)" }}
                 whileTap={{ scale: 0.95 }}
                 style={{
                   ...buttonStyle,
-                  padding: isMobile ? "14px" : "18px",
-                  borderRadius: isMobile ? "10px" : "14px",
-                  fontSize: isMobile ? "13px" : "16px"
+                  padding: isMobile ? "12px" : "14px",
+                  borderRadius: isMobile ? "10px" : "12px",
+                  fontSize: isMobile ? "12px" : "14px"
                 }}
                 onClick={joinRoom}
               >
@@ -716,7 +650,7 @@ const Home = () => {
           >
             <span style={{
               fontSize: isMobile ? "0.65rem" : "0.75rem",
-              color: "rgba(255,255,255,0.4)", letterSpacing: "2px",
+              color: "rgba(255, 255, 255, 0.5)", letterSpacing: "2px",
               fontWeight: "500", textTransform: "uppercase"
             }}>
               Scroll down for help
@@ -726,7 +660,7 @@ const Home = () => {
               transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
               style={{
                 width: "22px", height: "36px", borderRadius: "11px",
-                border: "2px solid rgba(255,255,255,0.2)",
+                border: "2px solid rgba(255, 255, 255, 0.5)",
                 display: "flex", justifyContent: "center", paddingTop: "7px"
               }}
             >
@@ -735,7 +669,7 @@ const Home = () => {
                 transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
                 style={{
                   width: "3px", height: "7px", borderRadius: "2px",
-                  background: "rgba(255,255,255,0.5)"
+                  background: "rgba(255, 255, 255, 0.5)"
                 }}
               />
             </motion.div>
@@ -763,7 +697,7 @@ const Home = () => {
                 ...glassCard,
                 borderRadius: "12px",
                 padding: isMobile ? "8px 16px" : "10px 22px",
-                color: "#a5b4fc",
+                color: "#60a5fa",
                 fontSize: isMobile ? "0.7rem" : "0.8rem",
                 fontWeight: "600", cursor: "pointer", letterSpacing: "1px",
                 display: "flex", alignItems: "center", gap: "6px",
@@ -775,33 +709,33 @@ const Home = () => {
 
             {/* Help Mode Tabs */}
             <div style={{
-                display: "flex", gap: "0",
-                background: "rgba(255,255,255,0.04)",
-                borderRadius: "12px", padding: "3px",
-                border: "1px solid rgba(255,255,255,0.06)"
-              }}>
-                {[
-                  { key: "youtube", label: "🎬 YouTube", color: "#3b82f6" },
-                  { key: "screenshare", label: "🖥️ Screen Share", color: "#10b981" }
-                ].map((m) => (
-                  <motion.button
-                    key={m.key}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setHelpMode(m.key)}
-                    style={{
-                      padding: isMobile ? "6px 12px" : "8px 18px",
-                      background: helpMode === m.key ? "rgba(255,255,255,0.08)" : "transparent",
-                      border: helpMode === m.key ? `1px solid ${m.color}33` : "1px solid transparent",
-                      color: helpMode === m.key ? m.color : "rgba(255,255,255,0.4)",
-                      fontSize: isMobile ? "0.7rem" : "0.78rem",
-                      fontWeight: "600", cursor: "pointer", borderRadius: "9px",
-                      transition: "all 0.2s ease"
-                    }}
-                  >
-                    {m.label}
-                  </motion.button>
-                ))}
-              </div>
+              display: "flex", gap: "0",
+              background: "rgba(255, 255, 255, 0.04)",
+              borderRadius: "12px", padding: "3px",
+              border: "1px solid rgba(255, 255, 255, 0.06)"
+            }}>
+              {[
+                { key: "youtube", label: "🎬 YouTube", color: "#3b82f6" },
+                { key: "screenshare", label: "🖥️ Screen Share", color: "#10b981" }
+              ].map((m) => (
+                <motion.button
+                  key={m.key}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setHelpMode(m.key)}
+                  style={{
+                    padding: isMobile ? "6px 12px" : "8px 18px",
+                    background: helpMode === m.key ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                    border: helpMode === m.key ? `1px solid ${m.color}33` : "1px solid transparent",
+                    color: helpMode === m.key ? m.color : "rgba(255,255,255,0.4)",
+                    fontSize: isMobile ? "0.7rem" : "0.78rem",
+                    fontWeight: "600", cursor: "pointer", borderRadius: "9px",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  {m.label}
+                </motion.button>
+              ))}
+            </div>
           </div>
 
           {/* Section Title */}
@@ -860,7 +794,7 @@ const Home = () => {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: false, amount: 0.1 }}
                   transition={{ duration: 0.5, delay: idx * 0.12 }}
-                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                  whileHover={{ y: -4, borderColor: "rgba(59, 130, 246, 0.25)", transition: { duration: 0.2 } }}
                   style={{
                     ...glassCard,
                     borderRadius: isMobile ? "18px" : "24px",
@@ -932,15 +866,15 @@ const Home = () => {
                     height: isMobile ? "36px" : "44px",
                     borderRadius: "12px",
                     background: helpMode === "youtube"
-                      ? "linear-gradient(135deg, rgba(124,58,237,0.25), rgba(59,130,246,0.25))"
-                      : "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(59,130,246,0.25))",
+                      ? "linear-gradient(135deg, rgba(37,99,235,0.3), rgba(59,130,246,0.2))"
+                      : "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(37,99,235,0.2))",
                     border: helpMode === "youtube"
-                      ? "1px solid rgba(124,58,237,0.25)"
+                      ? "1px solid rgba(59,130,246,0.2)"
                       : "1px solid rgba(16,185,129,0.25)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: isMobile ? "0.8rem" : "0.95rem",
                     fontWeight: "800",
-                    color: helpMode === "youtube" ? "#a5b4fc" : "#6ee7b7"
+                    color: helpMode === "youtube" ? "#60a5fa" : "#6ee7b7"
                   }}>
                     {step.num}
                   </div>
@@ -969,14 +903,14 @@ const Home = () => {
           <div style={{
             marginTop: isMobile ? "45px" : "65px",
             textAlign: "center", paddingTop: "25px",
-            borderTop: "1px solid rgba(255,255,255,0.05)",
+            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
             width: "100%"
           }}>
             <p style={{
-              color: "rgba(255,255,255,0.18)",
+              color: "rgba(96, 165, 250, 0.2)",
               fontSize: "0.7rem", letterSpacing: "2px"
             }}>
-              WATCHPARTY — Watch Together, Anywhere
+              WATCHPARTY — Watch Together, Anywhere<br />Design and created by Asif
             </p>
           </div>
         </div>
@@ -987,22 +921,25 @@ const Home = () => {
 
 const inputStyle = {
   padding: "16px",
-  background: "rgba(255, 255, 255, 0.05)",
+  background: "rgba(255, 255, 255, 0.04)",
   border: "1px solid rgba(255, 255, 255, 0.1)",
   borderRadius: "14px",
   color: "#fff",
-  outline: "none"
+  outline: "none",
+  transition: "border-color 0.2s ease, box-shadow 0.2s ease",
 };
 
 const buttonStyle = {
   padding: "18px",
-  background: "transparent",
+  background: "rgba(255, 255, 255, 0.06)",
   color: "#fff",
-  border: "1px solid #fff",
+  border: "1px solid rgba(255, 255, 255, 0.12)",
   borderRadius: "14px",
   fontWeight: "700",
   cursor: "pointer",
-  marginTop: "10px"
+  marginTop: "10px",
+  letterSpacing: "1px",
+  transition: "all 0.2s ease"
 };
 
 export default Home;
