@@ -39,6 +39,9 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     console.log(`User ${socket.id} joined room: ${roomId} (type: ${roomType})`);
 
+    const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+    io.to(roomId).emit("member_count_update", count);
+
     if (!rooms.has(roomId)) {
       rooms.set(roomId, {
         roomType,
@@ -65,6 +68,11 @@ io.on("connection", (socket) => {
 
   // Chat Message
   socket.on("send_message", (data) => {
+    // SECURITY: Server-side length validation
+    // if (!data.message || typeof data.message !== 'string' || data.message.trim() === "" || data.message.length > 500) {
+    //   return; // Reject invalid or excessively long messages
+    // }
+    
     if (rooms.has(data.room)) {
       const roomState = rooms.get(data.room);
       if (!roomState.messages) roomState.messages = [];
@@ -217,6 +225,15 @@ io.on("connection", (socket) => {
   // ========================
   // DISCONNECT
   // ========================
+
+  socket.on("disconnecting", () => {
+    socket.rooms.forEach((roomId) => {
+      if (roomId !== socket.id) {
+        const count = (io.sockets.adapter.rooms.get(roomId)?.size || 1) - 1;
+        io.to(roomId).emit("member_count_update", count);
+      }
+    });
+  });
 
   socket.on("disconnect", () => {
     console.log("User Disconnected", socket.id);

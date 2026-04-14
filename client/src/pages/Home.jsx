@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { nanoid } from "nanoid";
 import { TubesCursorBackground } from "@/components/ui/tubes-curor";
+import { useAuth } from "../hooks/useAuth";
+import { Helmet } from "react-helmet-async";
 
 // Inline SVG Logo Component (matches favicon)
 const WPLogo = ({ size = 28 }) => (
@@ -43,6 +46,20 @@ const isValidYouTubeUrl = (url) => {
   return patterns.some((pattern) => pattern.test(url.trim()));
 };
 
+const SVGIcons = {
+  Play: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>,
+  Chat: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>,
+  Link: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
+  Screen: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>,
+  Video: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>,
+  Filter: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>,
+  Check: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
+  Lock: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+  Globe: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>,
+  Plus: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>,
+  ArrowRight: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+};
+
 // --- Content Data (English + Hinglish) with YouTube + Screen Share modes ---
 const content = {
   en: {
@@ -50,70 +67,84 @@ const content = {
       sectionTitle: "How to Use",
       sectionSubtitle: "Everything you need to know about YouTube Watch Party",
       features: [
-        { icon: "🎬", title: "Synchronized Playback", desc: "Watch YouTube videos together in perfect sync. When anyone plays, pauses, or seeks — everyone follows in real time." },
-        { icon: "💬", title: "Live Chat", desc: "Chat with your friends while watching. Share reactions, comments, and moments — all in real-time alongside the video." },
-        { icon: "🔗", title: "Easy Room Sharing", desc: "Create a room with a unique ID and share it with anyone. They just enter the same Room ID to join your watch party instantly." }
+        { icon: SVGIcons.Play, title: "Synchronized Playback", desc: "Watch YouTube videos together in perfect sync. When anyone plays, pauses, or seeks — everyone follows in real time." },
+        { icon: SVGIcons.Chat, title: "Live Chat", desc: "Chat with your friends while watching. Share reactions, comments, and moments — all in real-time alongside the video." },
+        { icon: SVGIcons.Link, title: "Easy Room Sharing", desc: "Create a room with a unique ID and share it with anyone. They just enter the same Room ID to join your watch party instantly." }
       ],
       stepsTitle: "Getting Started",
       steps: [
-        { num: "01", title: "Pick a Username", desc: "Enter any display name you want your friends to see in the chat." },
-        { num: "02", title: "Create or Join a Room", desc: "Type a Room ID — any word or number. Share this ID with friends so they can join the same room." },
-        { num: "03", title: "Paste a YouTube Link", desc: "Copy a YouTube video URL and paste it in the Video Link field. Only valid YouTube links are accepted." },
-        { num: "04", title: "Start Watching!", desc: "Click 'Initialize System' and you're in! Play/pause syncs automatically across all viewers." }
+        { num: "01", title: "Secure Login", desc: "Sign in with your Google account for a safe and personalized experience." },
+        { num: "02", title: "Create or Join", desc: "Create a new Watch Party room or paste an existing Room ID to join your friends." },
+        { num: "03", title: "Add YouTube Link", desc: "Paste any valid YouTube URL to queue up the video for everyone." },
+        { num: "04", title: "Watch Together", desc: "Start watching! Play, pause, and seek will instantly sync for all members." }
       ]
     },
     screenshare: {
       sectionTitle: "Screen Share Guide",
       sectionSubtitle: "Everything you need to know about Screen Share Watch Party",
       features: [
-        { icon: "🖥️", title: "Screen Sharing", desc: "Share your entire screen, a specific window, or a browser tab with everyone in the room. Audio is captured too!" },
-        { icon: "📹", title: "Video Chat", desc: "Enable your camera and microphone for face-to-face interaction while watching content together." },
-        { icon: "🎨", title: "Fun Filters & Stickers", desc: "Apply fun video filters and stickers to your camera feed. Spice up your watch party with visual effects!" }
+        { icon: SVGIcons.Screen, title: "Screen Sharing", desc: "Share your entire screen, a specific window, or a browser tab with everyone in the room. Audio is captured too!" },
+        { icon: SVGIcons.Video, title: "Video Chat", desc: "Enable your camera and microphone for face-to-face interaction while watching content together." },
+        { icon: SVGIcons.Filter, title: "Fun Filters & Stickers", desc: "Apply fun video filters and stickers to your camera feed. Spice up your watch party with visual effects!" }
       ],
       stepsTitle: "Getting Started",
       steps: [
-        { num: "01", title: "Pick a Username", desc: "Enter any display name for others to identify you in the room." },
-        { num: "02", title: "Create or Join a Room", desc: "Enter a Room ID and share it with friends. Use the same ID to be in the same room." },
-        { num: "03", title: "Share Your Screen", desc: "Click 'Share Screen' and choose what to share — full screen, a window, or a browser tab." },
-        { num: "04", title: "Enable Video Chat", desc: "Toggle video chat to see each other while watching. Apply filters and stickers for fun!" }
+        { num: "01", title: "Secure Login", desc: "Log in safely with Google. Your profile information will be shown in the room." },
+        { num: "02", title: "Create or Join", desc: "Start your own screen share room or join someone else's using a Room ID." },
+        { num: "03", title: "Start Presenting", desc: "Click 'Share Screen' to broadcast a browser tab, a window, or your entire desktop." },
+        { num: "04", title: "Video & Chat", desc: "Enable your camera and mic to talk directly, and apply fun video filters!" }
       ]
     },
-    toggleLabel: "Translate to Hinglish"
+    toggleLabel: "Translate to Hinglish",
+    updatesTitle: "What's New in WatchParty v2.0",
+    updates: [
+      { version: "v2.0", title: "Google Authentication", desc: "Added secure Google Sign-In via Firebase for a personalized, secure experience." },
+      { version: "v2.0", title: "Enhanced Security", desc: "Implemented DOMPurify for chat sanitization with real-time payload length tracking." },
+      { version: "v2.0", title: "WebRTC TURN Support", desc: "Integrated robust TURN servers ensuring high-performance screen sharing without IP leaks." },
+      { version: "v2.0", title: "Live Member Sync", desc: "Real-time user counting within active rooms to see exactly who's watching alongside you." },
+    ]
   },
   hi: {
     youtube: {
       sectionTitle: "Kaise Use Karein",
       sectionSubtitle: "YouTube Watch Party ke baare mein sab kuch jaano",
       features: [
-        { icon: "🎬", title: "Synchronized Playback", desc: "YouTube videos saath mein sync mein dekho. Jab koi bhi play, pause ya seek kare — sabko real time mein same change dikhta hai." },
-        { icon: "💬", title: "Live Chat", desc: "Video dekhte waqt apne doston ke saath chat karo. Reactions, comments aur moments — sab kuch real-time mein share karo." },
-        { icon: "🔗", title: "Aasan Room Sharing", desc: "Ek unique ID ke saath room banao aur kisi ko bhi share karo. Unhe bas same Room ID daalna hoga aur wo turant join kar lenge." }
+        { icon: SVGIcons.Play, title: "Synchronized Playback", desc: "YouTube videos saath mein sync mein dekho. Jab koi bhi play, pause ya seek kare — sabko real time mein same change dikhta hai." },
+        { icon: SVGIcons.Chat, title: "Live Chat", desc: "Video dekhte waqt apne doston ke saath chat karo. Reactions, comments aur moments — sab kuch real-time mein share karo." },
+        { icon: SVGIcons.Link, title: "Aasan Room Sharing", desc: "Ek unique ID ke saath room banao aur kisi ko bhi share karo. Unhe bas same Room ID daalna hoga aur wo turant join kar lenge." }
       ],
       stepsTitle: "Shuru Kaise Karein",
       steps: [
-        { num: "01", title: "Username Daalo", desc: "Koi bhi display name daalo jo tumhare dost chat mein dekhein." },
-        { num: "02", title: "Room Banao ya Join Karo", desc: "Koi bhi Room ID likho — koi word ya number. Ye ID apne friends ke saath share karo taaki wo same room join kar sakein." },
-        { num: "03", title: "YouTube Link Paste Karo", desc: "YouTube video ka URL copy karo aur Video Link field mein paste karo. Sirf valid YouTube links accept hoti hain." },
-        { num: "04", title: "Dekhna Shuru Karo!", desc: "'Initialize System' pe click karo aur bas! Play/pause automatically sabke liye sync hota hai." }
+        { num: "01", title: "Secure Login", desc: "Apne Google account se secure login karein taaki aapka profile room mein dikhe." },
+        { num: "02", title: "Room Banao ya Join", desc: "Naya Watch Party room create karein ya fir doston ka Room ID daalkar directly join karein." },
+        { num: "03", title: "YouTube Link Daalo", desc: "Koi bhi YouTube video ka URL copy karke link box mein paste karein." },
+        { num: "04", title: "Saath Mein Dekho", desc: "Ab video start karein! Play, pause aur seek sabhi ke liye real-time mein sync hoga." }
       ]
     },
     screenshare: {
       sectionTitle: "Screen Share Guide",
       sectionSubtitle: "Screen Share Watch Party ke baare mein sab kuch jaano",
       features: [
-        { icon: "🖥️", title: "Screen Sharing", desc: "Apni poori screen, koi specific window, ya browser tab sabke saath share karo. Audio bhi capture hota hai!" },
-        { icon: "📹", title: "Video Chat", desc: "Camera aur microphone enable karo taaki sab ek doosre ko dekh sakein content dekhte waqt." },
-        { icon: "🎨", title: "Fun Filters & Stickers", desc: "Apne camera feed pe mazedaar filters aur stickers lagao. Watch party ko aur exciting banao!" }
+        { icon: SVGIcons.Screen, title: "Screen Sharing", desc: "Apni poori screen, koi specific window, ya browser tab sabke saath share karo. Audio bhi capture hota hai!" },
+        { icon: SVGIcons.Video, title: "Video Chat", desc: "Camera aur microphone enable karo taaki sab ek doosre ko dekh sakein content dekhte waqt." },
+        { icon: SVGIcons.Filter, title: "Fun Filters & Stickers", desc: "Apne camera feed pe mazedaar filters aur stickers lagao. Watch party ko aur exciting banao!" }
       ],
       stepsTitle: "Shuru Kaise Karein",
       steps: [
-        { num: "01", title: "Username Daalo", desc: "Koi bhi naam daal do jo room mein dikh sake." },
-        { num: "02", title: "Room Banao ya Join Karo", desc: "Room ID daalo aur friends ke saath share karo. Same ID daalo same room join karne ke liye." },
-        { num: "03", title: "Screen Share Karo", desc: "'Share Screen' pe click karo aur choose karo kya share karna hai — full screen, window, ya tab." },
-        { num: "04", title: "Video Chat Enable Karo", desc: "Video chat on karo ek doosre ko dekhne ke liye. Filters aur stickers bhi laga sakte ho!" }
+        { num: "01", title: "Secure Login", desc: "Saath milkar movies aur screen dekhne ke liye pehle Google se login karein." },
+        { num: "02", title: "Room Banao ya Join", desc: "Apna khud ka room banayein ya kisi bhi existing room ko uski ID se join karein." },
+        { num: "03", title: "Screen Share Karo", desc: "Share Screen par click karke browser tab, window ya puri desktop display karein." },
+        { num: "04", title: "Video Chat & Filters", desc: "Camera on karke doston se face-to-face baat karein, aur mazedaar video filters lagayein!" }
       ]
     },
-    toggleLabel: "Translate to English"
+    toggleLabel: "Translate to English",
+    updatesTitle: "WatchParty v2.0 Ke Naye Updates",
+    updates: [
+      { version: "v2.0", title: "Google Authentication", desc: "Firebase Google Sign-In add ho gaya hai, ab experience bilkul secure aur private hai." },
+      { version: "v2.0", title: "Enhanced Security", desc: "Chat ke liye DOMPurify add kiya gaya hai jisse koi spam/script na bhej sake. Message limit 500 chars." },
+      { version: "v2.0", title: "WebRTC TURN Support", desc: "Private TURN servers add kiye gaye hain, jisse IP leak issue khatam, aur speed ultra-fast." },
+      { version: "v2.0", title: "Live Member Sync", desc: "Room mein kitne log hain, ye live ab upar member icon ke saath dikh jayega." },
+    ]
   }
 };
 
@@ -125,9 +156,20 @@ const glassCard = {
   boxShadow: "0 25px 50px rgba(0,0,0,0.4)"
 };
 
+// Google "G" icon SVG for the login button
+const GoogleIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </svg>
+);
+
 const Home = () => {
+  const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const [username, setUsername] = useState("");
-  const [room, setRoom] = useState("");
+  const [joinRoomId, setJoinRoomId] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [linkError, setLinkError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
@@ -136,7 +178,14 @@ const Home = () => {
   const [isHinglish, setIsHinglish] = useState(false);
   const [roomMode, setRoomMode] = useState("youtube");
   const [helpMode, setHelpMode] = useState("youtube");
+  const [generatedRoomId, setGeneratedRoomId] = useState("");
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
+  const pendingAction = useRef(null); // "create" or "join"
   const helpRef = useRef(null);
+  const avatarRef = useRef(null);
   const navigate = useNavigate();
 
 
@@ -152,6 +201,34 @@ const Home = () => {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Close avatar dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (avatarRef.current && !avatarRef.current.contains(e.target)) {
+        setShowAvatarDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // After login, automatically execute the pending action
+  useEffect(() => {
+    if (user && pendingAction.current) {
+      const action = pendingAction.current;
+      pendingAction.current = null;
+      setShowLoginModal(false);
+      // Small delay to let auth state propagate
+      setTimeout(() => {
+        if (action === "create") {
+          executeCreateRoom();
+        } else if (action === "join") {
+          executeJoinRoom();
+        }
+      }, 100);
+    }
+  }, [user]);
+
 
 
   const handleVideoUrlChange = (e) => {
@@ -164,28 +241,129 @@ const Home = () => {
     }
   };
 
-  const joinRoom = () => {
+  // === Validate form fields ===
+  const validateCreateFields = () => {
+    if (!username.trim()) {
+      alert("Please enter a username!");
+      return false;
+    }
     if (roomMode === "youtube") {
-      if (!username || !room || !videoUrl) {
-        alert("Fields cannot be empty!");
-        return;
+      if (!videoUrl) {
+        alert("Please enter a YouTube video link!");
+        return false;
       }
       if (!isValidYouTubeUrl(videoUrl)) {
         setLinkError("Please enter a valid YouTube video link");
-        return;
+        return false;
       }
-      localStorage.setItem("wp_username", username);
+    }
+    return true;
+  };
+
+  const validateJoinFields = () => {
+    if (!username.trim()) {
+      alert("Please enter a username!");
+      return false;
+    }
+    if (roomMode === "youtube") {
+      if (!joinRoomId || !videoUrl) {
+        alert("Room ID and YouTube link cannot be empty!");
+        return false;
+      }
+      if (!isValidYouTubeUrl(videoUrl)) {
+        setLinkError("Please enter a valid YouTube video link");
+        return false;
+      }
+    } else {
+      if (!joinRoomId) {
+        alert("Room ID cannot be empty!");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // === Actual room creation (called only when authed) ===
+  const executeCreateRoom = useCallback(() => {
+    const newId = nanoid();
+    setGeneratedRoomId(newId);
+    setCopied(false);
+    setShowRoomModal(true);
+  }, []);
+
+  // === Actual room join (called only when authed) ===
+  const executeJoinRoom = useCallback(() => {
+    localStorage.setItem("wp_username", username.trim());
+    if (roomMode === "youtube") {
       localStorage.setItem("wp_videoUrl", videoUrl);
       localStorage.setItem("wp_roomMode", "youtube");
-      navigate(`/stream/${room}`);
+      navigate(`/stream/${joinRoomId}`);
     } else {
-      if (!username || !room) {
-        alert("Username and Room ID cannot be empty!");
-        return;
-      }
-      localStorage.setItem("wp_username", username);
       localStorage.setItem("wp_roomMode", "screenshare");
-      navigate(`/screen/${room}`);
+      navigate(`/screen/${joinRoomId}`);
+    }
+  }, [roomMode, videoUrl, joinRoomId, navigate, username]);
+
+  // === CREATE ROOM: validate, check auth, then execute or show login ===
+  const createRoom = () => {
+    if (!validateCreateFields()) return;
+    if (!user) {
+      pendingAction.current = "create";
+      setShowLoginModal(true);
+      return;
+    }
+    executeCreateRoom();
+  };
+
+  // === JOIN ROOM: validate, check auth, then execute or show login ===
+  const handleJoinRoom = () => {
+    if (!validateJoinFields()) return;
+    if (!user) {
+      pendingAction.current = "join";
+      setShowLoginModal(true);
+      return;
+    }
+    executeJoinRoom();
+  };
+
+  // === ENTER ROOM: called from room-ID modal after seeing the generated ID ===
+  const enterGeneratedRoom = () => {
+    localStorage.setItem("wp_username", username.trim());
+    if (roomMode === "youtube") {
+      localStorage.setItem("wp_videoUrl", videoUrl);
+      localStorage.setItem("wp_roomMode", "youtube");
+      navigate(`/stream/${generatedRoomId}`);
+    } else {
+      localStorage.setItem("wp_roomMode", "screenshare");
+      navigate(`/screen/${generatedRoomId}`);
+    }
+  };
+
+  // === Google login from modal ===
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithGoogle();
+      // The useEffect watching `user` will handle the pending action
+    } catch (err) {
+      console.error("Login failed:", err);
+    }
+  };
+
+  const copyRoomId = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedRoomId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const ta = document.createElement("textarea");
+      ta.value = generatedRoomId;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -194,8 +372,8 @@ const Home = () => {
   };
 
   const modes = [
-    { key: "youtube", label: "YouTube Party", icon: "🎬" },
-    { key: "screenshare", label: "Screen Share", icon: "🖥️" },
+    { key: "youtube", label: "YouTube Party", icon: <div style={{ transform: "scale(0.8)", display: "flex", alignItems: "center" }}>{SVGIcons.Play}</div> },
+    { key: "screenshare", label: "Screen Share", icon: <div style={{ transform: "scale(0.8)", display: "flex", alignItems: "center" }}>{SVGIcons.Screen}</div> },
   ];
 
   return (
@@ -215,6 +393,15 @@ const Home = () => {
       }}
       onMouseLeave={() => setShowGlow(false)}
     >
+      <Helmet>
+        <title>WatchParty — Watch YouTube Together in Sync</title>
+        <meta name="description" content="WatchParty — Watch YouTube together in sync for free. Enjoy live chat, video call, screen sharing, and synchronized playback with friends. No download required!" />
+        <meta property="og:title" content="WatchParty — Watch YouTube Together in Sync" />
+        <meta property="og:description" content="WatchParty — Watch YouTube together in sync for free. Enjoy live chat, video call, screen sharing, and synchronized playback with friends. No download required!" />
+        <meta property="og:url" content="https://watchparty.website/" />
+        <link rel="canonical" href="https://watchparty.website/" />
+      </Helmet>
+
       {/* === MOUSE HOVER GLOW — PURPLE === */}
       {showGlow && !isMobile && (
         <div style={{
@@ -439,11 +626,115 @@ const Home = () => {
             WATCH<span style={{ color: "#3b82f6" }}>PARTY</span>
           </h2>
         </div>
-        <div style={{
-          fontSize: isMobile ? "0.65rem" : "0.7rem",
-          color: "rgba(96, 165, 250, 0.4)", letterSpacing: "2px", fontWeight: "500"
-        }}>
-          SYNC · WATCH · CHAT
+        {/* Auth UI — right side of navbar */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {authLoading ? (
+            <div style={{
+              width: "28px", height: "28px", borderRadius: "50%",
+              background: "rgba(255,255,255,0.06)",
+            }} />
+          ) : user ? (
+            <div ref={avatarRef} style={{ position: "relative" }}>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
+                style={{
+                  display: "flex", alignItems: "center", gap: isMobile ? "6px" : "10px",
+                  cursor: "pointer", padding: "4px 8px",
+                  borderRadius: "12px",
+                  background: showAvatarDropdown ? "rgba(255,255,255,0.06)" : "transparent",
+                  transition: "background 0.2s"
+                }}
+              >
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  style={{
+                    width: isMobile ? "28px" : "32px",
+                    height: isMobile ? "28px" : "32px",
+                    borderRadius: "50%",
+                    border: "2px solid rgba(59, 130, 246, 0.3)",
+                    objectFit: "cover"
+                  }}
+                />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ transform: showAvatarDropdown ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </motion.div>
+
+              {/* Dropdown */}
+              <AnimatePresence>
+                {showAvatarDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    style={{
+                      position: "absolute", top: "calc(100% + 8px)", right: 0,
+                      background: "rgba(15, 23, 42, 0.95)",
+                      backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: "14px",
+                      padding: "8px",
+                      minWidth: "180px",
+                      boxShadow: "0 15px 40px rgba(0,0,0,0.5)",
+                      zIndex: 100
+                    }}
+                  >
+                    {/* Sign out button */}
+                    <motion.button
+                      whileHover={{ background: "rgba(239, 68, 68, 0.1)" }}
+                      onClick={() => { signOut(); setShowAvatarDropdown(false); }}
+                      style={{
+                        width: "100%", padding: "10px 12px",
+                        background: "transparent", border: "none",
+                        color: "#f87171", fontSize: "0.8rem",
+                        fontWeight: "600", cursor: "pointer",
+                        borderRadius: "10px", textAlign: "left",
+                        display: "flex", alignItems: "center", gap: "8px",
+                        transition: "background 0.15s"
+                      }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      Sign Out
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.05, background: "rgba(255,255,255,0.1)" }}
+              whileTap={{ scale: 0.95 }}
+              onClick={async () => { try { await signInWithGoogle(); } catch {} }}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: isMobile ? "7px 14px" : "8px 18px",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "10px",
+                color: "#fff", fontSize: isMobile ? "0.72rem" : "0.8rem",
+                fontWeight: "600", cursor: "pointer",
+                transition: "all 0.2s ease",
+                letterSpacing: "0.3px"
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              Login
+            </motion.button>
+          )}
         </div>
       </motion.nav>
 
@@ -546,18 +837,6 @@ const Home = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
-              <input
-                style={{
-                  ...inputStyle,
-                  padding: isMobile ? "10px 12px" : "13px 16px",
-                  borderRadius: isMobile ? "10px" : "12px",
-                  fontSize: isMobile ? "13px" : "14px"
-                }}
-                placeholder="Room ID"
-                value={room}
-                onChange={(e) => setRoom(e.target.value)}
-              />
-
               {/* YouTube mode: show video link field */}
               <AnimatePresence mode="wait">
                 {roomMode === "youtube" && (
@@ -614,12 +893,29 @@ const Home = () => {
                       fontSize: isMobile ? "0.75rem" : "0.85rem",
                       lineHeight: "1.5"
                     }}>
-                      🖥️ You'll be able to share your screen after joining the room. Screen, window, and tab sharing are supported.
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div style={{ transform: "scale(0.8)" }}>{SVGIcons.Screen}</div>
+                        <span>You'll be able to share your screen after joining the room. Screen, window, and tab sharing are supported.</span>
+                      </div>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
+              {/* === DIVIDER: Create vs Join === */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: "12px",
+                margin: isMobile ? "4px 0" : "6px 0"
+              }}>
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
+                <span style={{
+                  color: "rgba(255,255,255,0.25)", fontSize: isMobile ? "0.6rem" : "0.7rem",
+                  letterSpacing: "2px", fontWeight: "600", textTransform: "uppercase"
+                }}>choose action</span>
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
+              </div>
+
+              {/* === CREATE ROOM BUTTON === */}
               <motion.button
                 whileHover={{ scale: 1.03, boxShadow: "0 0 30px rgba(37, 99, 235, 0.3)" }}
                 whileTap={{ scale: 0.95 }}
@@ -627,14 +923,321 @@ const Home = () => {
                   ...buttonStyle,
                   padding: isMobile ? "12px" : "14px",
                   borderRadius: isMobile ? "10px" : "12px",
-                  fontSize: isMobile ? "12px" : "14px"
+                  fontSize: isMobile ? "12px" : "14px",
+                  background: "linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(59, 130, 246, 0.2))",
+                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                  marginTop: "0"
                 }}
-                onClick={joinRoom}
+                onClick={createRoom}
               >
-                {roomMode === "youtube" ? "INITIALIZE SYSTEM" : "START SCREEN SHARE ROOM"}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>{SVGIcons.Plus} CREATE ROOM</div>
               </motion.button>
+
+              {/* === OR DIVIDER === */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: "12px",
+                margin: isMobile ? "2px 0" : "4px 0"
+              }}>
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+                <span style={{
+                  color: "rgba(255,255,255,0.2)", fontSize: isMobile ? "0.6rem" : "0.7rem",
+                  fontWeight: "600"
+                }}>OR</span>
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+              </div>
+
+              {/* === JOIN ROOM: input + button === */}
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  style={{
+                    ...inputStyle,
+                    padding: isMobile ? "10px 12px" : "13px 16px",
+                    borderRadius: isMobile ? "10px" : "12px",
+                    fontSize: isMobile ? "13px" : "14px",
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                  placeholder="Paste Room ID to join"
+                  value={joinRoomId}
+                  onChange={(e) => setJoinRoomId(e.target.value)}
+                />
+                <motion.button
+                  whileHover={{ scale: 1.05, boxShadow: "0 0 20px rgba(255,255,255,0.08)" }}
+                  whileTap={{ scale: 0.95 }}
+                  style={{
+                    ...buttonStyle,
+                    padding: isMobile ? "10px 14px" : "13px 20px",
+                    borderRadius: isMobile ? "10px" : "12px",
+                    fontSize: isMobile ? "11px" : "13px",
+                    marginTop: "0",
+                    whiteSpace: "nowrap"
+                  }}
+                  onClick={handleJoinRoom}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>JOIN {SVGIcons.ArrowRight}</div>
+                </motion.button>
+              </div>
             </div>
           </motion.div>
+
+          {/* === ROOM ID MODAL OVERLAY === */}
+          <AnimatePresence>
+            {showRoomModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                style={{
+                  position: "fixed", inset: 0, zIndex: 100,
+                  background: "rgba(0, 0, 0, 0.7)",
+                  backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "20px"
+                }}
+                onClick={() => setShowRoomModal(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, y: 30 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: 30 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    ...glassCard,
+                    borderRadius: isMobile ? "18px" : "24px",
+                    padding: isMobile ? "28px 22px" : "40px 44px",
+                    width: isMobile ? "92%" : "auto",
+                    maxWidth: "480px",
+                    textAlign: "center",
+                    background: "rgba(15, 23, 42, 0.95)",
+                    border: "1px solid rgba(59, 130, 246, 0.2)",
+                    boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 40px rgba(59, 130, 246, 0.1)"
+                  }}
+                >
+                  {/* Success icon */}
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
+                    style={{
+                      width: isMobile ? "50px" : "60px", height: isMobile ? "50px" : "60px",
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, rgba(37,99,235,0.25), rgba(59,130,246,0.15))",
+                      border: "1px solid rgba(59,130,246,0.3)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      margin: "0 auto 18px",
+                      fontSize: isMobile ? "1.4rem" : "1.6rem"
+                    }}
+                  >
+                    🎉
+                  </motion.div>
+
+                  <h3 style={{
+                    color: "#fff", fontSize: isMobile ? "1.1rem" : "1.4rem",
+                    fontWeight: "800", margin: "0 0 6px 0"
+                  }}>
+                    Room Created!
+                  </h3>
+                  <p style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: isMobile ? "0.72rem" : "0.85rem",
+                    margin: "0 0 20px 0", lineHeight: "1.5"
+                  }}>
+                    Share this Room ID with your friends so they can join
+                  </p>
+
+                  {/* Room ID display */}
+                  <div style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(59, 130, 246, 0.2)",
+                    borderRadius: isMobile ? "10px" : "14px",
+                    padding: isMobile ? "14px" : "18px",
+                    marginBottom: "16px",
+                    position: "relative"
+                  }}>
+                    <p style={{
+                      color: "rgba(96,165,250,0.5)",
+                      fontSize: "0.65rem", letterSpacing: "2px",
+                      margin: "0 0 8px 0", textTransform: "uppercase", fontWeight: "600"
+                    }}>
+                      Your Room ID
+                    </p>
+                    <p style={{
+                      color: "#60a5fa",
+                      fontSize: isMobile ? "0.85rem" : "1.05rem",
+                      fontWeight: "700", margin: 0,
+                      fontFamily: "'Courier New', Courier, monospace",
+                      letterSpacing: "0.5px",
+                      wordBreak: "break-all",
+                      lineHeight: "1.4"
+                    }}>
+                      {generatedRoomId}
+                    </p>
+                  </div>
+
+                  {/* Buttons */}
+                  <div style={{ display: "flex", gap: "10px", flexDirection: isMobile ? "column" : "row" }}>
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={copyRoomId}
+                      style={{
+                        flex: 1,
+                        padding: isMobile ? "12px" : "14px 20px",
+                        background: copied
+                          ? "rgba(16, 185, 129, 0.15)"
+                          : "rgba(255,255,255,0.06)",
+                        border: copied
+                          ? "1px solid rgba(16, 185, 129, 0.3)"
+                          : "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: isMobile ? "10px" : "12px",
+                        color: copied ? "#6ee7b7" : "#fff",
+                        fontSize: isMobile ? "0.75rem" : "0.85rem",
+                        fontWeight: "700", cursor: "pointer",
+                        letterSpacing: "0.5px",
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      {copied ? "✓ COPIED!" : "📋 COPY ROOM ID"}
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.04, boxShadow: "0 0 30px rgba(37, 99, 235, 0.3)" }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={enterGeneratedRoom}
+                      style={{
+                        flex: 1,
+                        padding: isMobile ? "12px" : "14px 20px",
+                        background: "linear-gradient(135deg, rgba(37,99,235,0.4), rgba(59,130,246,0.25))",
+                        border: "1px solid rgba(59, 130, 246, 0.3)",
+                        borderRadius: isMobile ? "10px" : "12px",
+                        color: "#fff",
+                        fontSize: isMobile ? "0.75rem" : "0.85rem",
+                        fontWeight: "700", cursor: "pointer",
+                        letterSpacing: "0.5px",
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      ENTER ROOM →
+                    </motion.button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* === LOGIN REQUIRED MODAL === */}
+          <AnimatePresence>
+            {showLoginModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                style={{
+                  position: "fixed", inset: 0, zIndex: 200,
+                  background: "rgba(0, 0, 0, 0.75)",
+                  backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "20px"
+                }}
+                onClick={() => { setShowLoginModal(false); pendingAction.current = null; }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, y: 30 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: 30 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    ...glassCard,
+                    borderRadius: isMobile ? "18px" : "24px",
+                    padding: isMobile ? "32px 24px" : "44px 48px",
+                    width: isMobile ? "92%" : "auto",
+                    maxWidth: "420px",
+                    textAlign: "center",
+                    background: "rgba(15, 23, 42, 0.95)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 60px rgba(59, 130, 246, 0.08)"
+                  }}
+                >
+                  {/* Lock icon */}
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.1 }}
+                    style={{
+                      width: isMobile ? "56px" : "68px", height: isMobile ? "56px" : "68px",
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, rgba(37,99,235,0.2), rgba(59,130,246,0.1))",
+                      border: "1px solid rgba(59,130,246,0.2)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      margin: "0 auto 20px",
+                      fontSize: isMobile ? "1.5rem" : "1.8rem"
+                    }}
+                  >
+                    {SVGIcons.Lock}
+                  </motion.div>
+
+                  <h3 style={{
+                    color: "#fff", fontSize: isMobile ? "1.2rem" : "1.5rem",
+                    fontWeight: "800", margin: "0 0 8px 0"
+                  }}>
+                    Login Required
+                  </h3>
+                  <p style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: isMobile ? "0.78rem" : "0.9rem",
+                    margin: "0 0 28px 0", lineHeight: "1.5"
+                  }}>
+                    Sign in to create or join a watch party
+                  </p>
+
+                  {/* Continue with Google button */}
+                  <motion.button
+                    whileHover={{ scale: 1.03, boxShadow: "0 0 30px rgba(255,255,255,0.08)" }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleGoogleLogin}
+                    style={{
+                      width: "100%",
+                      padding: isMobile ? "13px" : "15px 24px",
+                      background: "#fff",
+                      border: "none",
+                      borderRadius: isMobile ? "10px" : "12px",
+                      color: "#1f2937",
+                      fontSize: isMobile ? "0.82rem" : "0.92rem",
+                      fontWeight: "700", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      gap: "10px",
+                      transition: "all 0.2s ease",
+                      letterSpacing: "0.3px"
+                    }}
+                  >
+                    <GoogleIcon size={20} />
+                    Continue with Google
+                  </motion.button>
+
+                  {/* Cancel link */}
+                  <motion.button
+                    whileHover={{ color: "rgba(255,255,255,0.6)" }}
+                    onClick={() => { setShowLoginModal(false); pendingAction.current = null; }}
+                    style={{
+                      background: "none", border: "none",
+                      color: "rgba(255,255,255,0.3)",
+                      fontSize: isMobile ? "0.75rem" : "0.82rem",
+                      fontWeight: "500", cursor: "pointer",
+                      marginTop: "16px",
+                      transition: "color 0.2s",
+                      padding: "8px 16px"
+                    }}
+                  >
+                    Cancel
+                  </motion.button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Scroll Down Indicator */}
           <motion.div
@@ -704,7 +1307,8 @@ const Home = () => {
                 transition: "all 0.3s ease"
               }}
             >
-              🌐 {toggleLabel}
+              <div style={{ transform: "scale(0.9)" }}>{SVGIcons.Globe}</div>
+              {content[lang].toggleLabel}
             </motion.button>
 
             {/* Help Mode Tabs */}
@@ -715,8 +1319,8 @@ const Home = () => {
               border: "1px solid rgba(255, 255, 255, 0.06)"
             }}>
               {[
-                { key: "youtube", label: "🎬 YouTube", color: "#3b82f6" },
-                { key: "screenshare", label: "🖥️ Screen Share", color: "#10b981" }
+                { key: "youtube", label: "YouTube", icon: SVGIcons.Play, color: "#3b82f6" },
+                { key: "screenshare", label: "Screen Share", icon: SVGIcons.Screen, color: "#10b981" }
               ].map((m) => (
                 <motion.button
                   key={m.key}
@@ -729,9 +1333,11 @@ const Home = () => {
                     color: helpMode === m.key ? m.color : "rgba(255,255,255,0.4)",
                     fontSize: isMobile ? "0.7rem" : "0.78rem",
                     fontWeight: "600", cursor: "pointer", borderRadius: "9px",
-                    transition: "all 0.2s ease"
+                    transition: "all 0.2s ease",
+                    display: "flex", alignItems: "center", gap: "6px"
                   }}
                 >
+                  <div style={{ transform: "scale(0.8)" }}>{m.icon}</div>
                   {m.label}
                 </motion.button>
               ))}

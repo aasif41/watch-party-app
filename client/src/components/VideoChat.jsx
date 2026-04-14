@@ -56,9 +56,21 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
+    {
+      urls: "turn:free.expressturn.com:3478",
+      username: import.meta.env.VITE_TURN_USERNAME,
+      credential: import.meta.env.VITE_TURN_CREDENTIAL,
+    }
   ],
+};
+
+const ToolIcons = {
+  Mic: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>,
+  MicOff: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"></path><path d="M5 10v2a7 7 0 0 0 12 5"></path><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"></path><path d="M9 9v3a3 3 0 0 0 5.12 2.12"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>,
+  Cam: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>,
+  CamOff: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M16 12 23 17 23 7 16 12"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>,
+  Palette: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>,
+  Sticker: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
 };
 
 /* ======================================================
@@ -505,11 +517,11 @@ const VideoChat = ({ socket, roomId, username }) => {
         background: "rgba(20, 20, 20, 0.85)", backdropFilter: "blur(12px)",
         border: "1px solid rgba(255,255,255,0.08)", padding: "6px", borderRadius: "12px", zIndex: 20
       }}>
-        <ToolBtn active={!isMuted} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>{isMuted ? "🔇" : "🎤"}</ToolBtn>
-        <ToolBtn active={!isCamOff} onClick={toggleCamera} title={isCamOff ? "Camera On" : "Camera Off"}>{isCamOff ? "📷" : "📹"}</ToolBtn>
+        <ToolBtn active={!isMuted} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>{isMuted ? ToolIcons.MicOff : ToolIcons.Mic}</ToolBtn>
+        <ToolBtn active={!isCamOff} onClick={toggleCamera} title={isCamOff ? "Camera On" : "Camera Off"}>{isCamOff ? ToolIcons.CamOff : ToolIcons.Cam}</ToolBtn>
         <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 2px" }} />
-        <ToolBtn active={activePanel === "filters"} onClick={() => setActivePanel(p => p === "filters" ? null : "filters")}>🎨</ToolBtn>
-        <ToolBtn active={activePanel === "stickers"} onClick={() => setActivePanel(p => p === "stickers" ? null : "stickers")}>😎</ToolBtn>
+        <ToolBtn active={activePanel === "filters"} onClick={() => setActivePanel(p => p === "filters" ? null : "filters")}>{ToolIcons.Palette}</ToolBtn>
+        <ToolBtn active={activePanel === "stickers"} onClick={() => setActivePanel(p => p === "stickers" ? null : "stickers")}>{ToolIcons.Sticker}</ToolBtn>
         <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 2px" }} />
         <motion.button
           whileTap={{ scale: 0.9 }} onClick={disableVideoChat}

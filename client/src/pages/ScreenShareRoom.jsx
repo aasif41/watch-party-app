@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSocket } from "../hooks/useSocket";
+import { useAuth } from "../hooks/useAuth";
 import ChatBox from "../components/ChatBox";
 import VideoChat from "../components/VideoChat";
 import { motion, AnimatePresence } from "framer-motion";
+import { Helmet } from "react-helmet-async";
 
 const WPLogo = ({ size = 22 }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size} style={{ flexShrink: 0 }}>
@@ -28,8 +30,11 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
+    {
+      urls: "turn:free.expressturn.com:3478",
+      username: import.meta.env.VITE_TURN_USERNAME,
+      credential: import.meta.env.VITE_TURN_CREDENTIAL,
+    }
   ],
 };
 
@@ -62,8 +67,9 @@ const ScreenShareRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
+  const { user } = useAuth();
 
-  const [username] = useState(localStorage.getItem("wp_username") || "Watcher");
+  const username = localStorage.getItem("wp_username") || user?.displayName || "Watcher";
   const [isMobile, setIsMobile] = useState(false);
   const [isIOSDevice, setIsIOSDevice] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -74,6 +80,7 @@ const ScreenShareRoom = () => {
   const [showSidebar, setShowSidebar] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
+  const [memberCount, setMemberCount] = useState(0);
 
   const localStreamRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -148,12 +155,14 @@ const ScreenShareRoom = () => {
     socket.on("room_state", handleRoomState);
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
+    socket.on("member_count_update", (count) => setMemberCount(count));
     if (socket.connected) setConnectionStatus("connected");
 
     return () => {
       socket.off("room_state", handleRoomState);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
+      socket.off("member_count_update");
       stopSharing();
     };
   }, [socket, roomId]);
@@ -310,6 +319,11 @@ const ScreenShareRoom = () => {
 
   return (
     <div className="screen-room-root">
+      <Helmet>
+        <title>Screen Share Room — WatchParty</title>
+        <meta name="description" content="Join the screen sharing room on WatchParty. Share your screen, video chat, and collaborate with friends in real-time." />
+        <meta name="robots" content="noindex" />
+      </Helmet>
       {/* Top Bar */}
       <motion.header
         initial={{ y: -40, opacity: 0 }}
@@ -320,6 +334,14 @@ const ScreenShareRoom = () => {
         <div className="header-left">
           <span className="brand">Watch<span className="brand-accent">Party</span></span>
           <span className="room-badge">{roomId}</span>
+          <span className="room-badge" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            {memberCount}
+          </span>
+          <span className="room-badge" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.3)" }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            {username}
+          </span>
           <span className={`status-dot ${connectionStatus}`} />
         </div>
 

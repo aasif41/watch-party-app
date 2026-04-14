@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import DOMPurify from "dompurify";
 
 const ChatBox = ({ socket, room, username }) => {
   const [currentMessage, setCurrentMessage] = useState("");
@@ -13,20 +14,30 @@ const ChatBox = ({ socket, room, username }) => {
   useEffect(() => { scrollToBottom(); }, [messageList]);
 
   const sendMessage = async () => {
-    if (currentMessage.trim() !== "") {
+    const trimmedMsg = currentMessage.trim();
+    if (trimmedMsg !== "" && trimmedMsg.length <= 500) {
       const messageData = {
-        room, author: username, message: currentMessage,
+        room, author: username, message: trimmedMsg,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       await socket.emit("send_message", messageData);
+      
+      messageData.message = DOMPurify.sanitize(messageData.message);
       setMessageList((list) => [...list, messageData]);
       setCurrentMessage("");
     }
   };
 
   useEffect(() => {
-    const handler = (data) => setMessageList((list) => [...list, data]);
-    const historyHandler = (history) => setMessageList(history);
+    const handler = (data) => {
+      const sanitizedData = { ...data, message: DOMPurify.sanitize(data.message) };
+      setMessageList((list) => [...list, sanitizedData]);
+    };
+    
+    const historyHandler = (history) => {
+      const sanitizedHistory = history.map(msg => ({ ...msg, message: DOMPurify.sanitize(msg.message) }));
+      setMessageList(sanitizedHistory);
+    };
 
     socket.on("receive_message", handler);
     socket.on("chat_history", historyHandler);
@@ -84,15 +95,22 @@ const ChatBox = ({ socket, room, username }) => {
             type="text"
             value={currentMessage}
             placeholder="Message..."
+            maxLength={500}
             onChange={(e) => setCurrentMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             className="chatbox-input"
           />
+          <span 
+            className="chatbox-counter" 
+            style={{ color: currentMessage.length > 400 ? '#ef4444' : '#64748b' }}
+          >
+            {currentMessage.length}/500
+          </span>
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={sendMessage}
             className="chatbox-send"
-            disabled={!currentMessage.trim()}
+            disabled={!currentMessage.trim() || currentMessage.trim().length > 500}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />
@@ -237,6 +255,13 @@ const ChatBox = ({ socket, room, username }) => {
           font-family: inherit;
         }
         .chatbox-input::placeholder { color: #334155; }
+
+        .chatbox-counter {
+          font-size: 0.65rem;
+          margin-right: 4px;
+          min-width: 38px;
+          text-align: right;
+        }
 
         .chatbox-send {
           width: 34px; height: 34px;
