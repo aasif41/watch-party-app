@@ -22,6 +22,8 @@ const io = new Server(server, {
 
 // Store room state in memory
 const rooms = new Map();
+// Store cleanup timers — rooms are deleted 10 min after last user leaves
+const roomCleanupTimers = new Map();
 
 io.on("connection", (socket) => {
   console.log(`User Connected: ${socket.id}`);
@@ -37,6 +39,13 @@ io.on("connection", (socket) => {
     const roomType = typeof roomData === 'object' ? (roomData.roomType || 'youtube') : 'youtube';
     
     socket.join(roomId);
+
+    // Cancel any pending cleanup timer for this room
+    if (roomCleanupTimers.has(roomId)) {
+      clearTimeout(roomCleanupTimers.get(roomId));
+      roomCleanupTimers.delete(roomId);
+      console.log(`Cleanup timer cancelled for room ${roomId} (user joined)`);
+    }
     console.log(`User ${socket.id} joined room: ${roomId} (type: ${roomType})`);
 
     const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
@@ -231,6 +240,25 @@ io.on("connection", (socket) => {
       if (roomId !== socket.id) {
         const count = (io.sockets.adapter.rooms.get(roomId)?.size || 1) - 1;
         io.to(roomId).emit("member_count_update", count);
+
+        // If room is now empty, start a 10-minute cleanup timer
+        if (count === 0 && rooms.has(roomId)) {
+          const CLEANUP_DELAY = 10 * 60 * 1000; // 10 minutes
+          console.log(`Room ${roomId} is empty. Will clean up in 10 minutes.`);
+          const timer = setTimeout(() => {
+            // Double-check room is still empty before deleting
+            const currentSize = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+            if (currentSize === 0) {
+              rooms.delete(roomId);
+              roomCleanupTimers.delete(roomId);
+              console.log(`Room ${roomId} cleaned up after 10-minute timeout.`);
+            } else {
+              roomCleanupTimers.delete(roomId);
+              console.log(`Room ${roomId} cleanup cancelled — users rejoined.`);
+            }
+          }, CLEANUP_DELAY);
+          roomCleanupTimers.set(roomId, timer);
+        }
       }
     });
   });

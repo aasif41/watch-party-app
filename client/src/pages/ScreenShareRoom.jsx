@@ -81,11 +81,13 @@ const ScreenShareRoom = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [memberCount, setMemberCount] = useState(0);
+  const [chatToast, setChatToast] = useState(null);
 
   const localStreamRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnectionsRef = useRef(new Map());
   const viewerPcRef = useRef(null);
+  const chatToastTimer = useRef(null);
 
   useEffect(() => {
     const check = () => {
@@ -125,12 +127,18 @@ const ScreenShareRoom = () => {
 
   // Unread badge logic
   useEffect(() => {
-    const handleMsg = () => {
+    const handleMsg = (data) => {
       if (activeTab !== "chat") setUnreadCount(c => c + 1);
+      // Show toast when sidebar is hidden
+      if (!showSidebar || activeTab !== "chat") {
+        setChatToast({ author: data.author, message: data.message });
+        if (chatToastTimer.current) clearTimeout(chatToastTimer.current);
+        chatToastTimer.current = setTimeout(() => setChatToast(null), 4000);
+      }
     };
     socket.on("receive_message", handleMsg);
     return () => socket.off("receive_message", handleMsg);
-  }, [socket, activeTab]);
+  }, [socket, activeTab, showSidebar]);
 
   useEffect(() => {
     if (activeTab === "chat") setUnreadCount(0);
@@ -458,6 +466,41 @@ const ScreenShareRoom = () => {
           </div>
         </div>
       </div>
+
+      {/* Chat Toast Notification */}
+      <AnimatePresence>
+        {chatToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, x: 20 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: 10, x: 20 }}
+            transition={{ duration: 0.25 }}
+            onClick={() => { setShowSidebar(true); setActiveTab("chat"); setChatToast(null); }}
+            style={{
+              position: "fixed", bottom: "16px", right: "16px", zIndex: 200,
+              background: "rgba(15, 23, 42, 0.95)", backdropFilter: "blur(12px)",
+              border: "1px solid rgba(59, 130, 246, 0.2)",
+              borderRadius: "12px", padding: "10px 14px",
+              maxWidth: "280px", cursor: "pointer",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+              display: "flex", alignItems: "center", gap: "10px"
+            }}
+          >
+            <div style={{
+              width: "28px", height: "28px", borderRadius: "50%",
+              background: "linear-gradient(135deg, #2563eb, #3b82f6)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "0.7rem", fontWeight: "700", color: "#fff", flexShrink: 0
+            }}>
+              {chatToast.author?.charAt(0).toUpperCase()}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ color: "#60a5fa", fontSize: "0.68rem", fontWeight: "600", margin: 0, lineHeight: 1 }}>{chatToast.author}</p>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", margin: "3px 0 0 0", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chatToast.message}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
